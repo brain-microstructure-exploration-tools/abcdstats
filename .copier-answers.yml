@@ -1,0 +1,13 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: 2024.08.19
+_src_path: gh:scientific-python/cookie
+backend: hatch
+email: ebrahim.ebrahim@kitware.com
+full_name: Ebrahim Ebrahim
+license: Apache
+org: brain-microstructure-exploration-tools
+project_name: abcdstats
+project_short_description: Statistical analysis tools for use with ABCD neuroimaging
+    and tabular data
+url: https://github.com/brain-microstructure-exploration-tools/abcdstats
+vcs: true
