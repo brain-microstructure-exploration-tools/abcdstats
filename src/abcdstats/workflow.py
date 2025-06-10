@@ -11,25 +11,38 @@ import yaml
 
 class Basic:
     """
-    This is a working workflow that is configurable via yaml file.  Changes not achievable via the YAML file can be made
-    by subclassing this class and overriding relevant methods.
+    This is a working workflow that is configurable via a YAML file.  Changes not achievable via configuration can be
+    made by subclassing this class and overriding relevant methods.
     """
 
     def __init__(self, *, yaml_file: str | pathlib.Path | None = None) -> None:
+        # globally useful values
+        self.join_keys: list[str] = ["src_subject_id", "eventname"]
+        # Default values that are in the configuration only once
+        self.minimum_perplexity_default: float = 1.1
+        self.background_index_default: int = 0
+        # Defaults values that can be in the configuration multiple times
+        self.longitudinal_default: list[str] = ["intercept"]
+        self.is_missing_default: list[Any] = ["", np.nan]
+        self.convert_default: dict[Any, Any] = {}
+
         if yaml_file is not None:
             self.configure(yaml_file=yaml_file)
 
     def configure(self, *, yaml_file: str | pathlib.Path) -> None:
+        # TODO: If configure is called a subsequent time, only overwrite values that are newly supplied?
         with pathlib.Path(yaml_file).open("r") as f:
             self.config = yaml.safe_load(f)
+
 
     def run(self) -> None:
         """
         TODO: Check that each affine_transform produced is np.all_close with the first
         TODO: Make sure that the images are in the same order for each numpy array
-        tested_input.shape == (number_images, number_ksads)
-        target_input.shape == (number_images, number_voxels)
-        confounding_input.shape == (number_images, number_confounding_vars)
+        Shapes of the numpy arrays are
+          tested_input.shape == (number_images, number_ksads)
+          target_input.shape == (number_images, number_voxels)
+          confounding_input.shape == (number_images, number_confounding_vars)
         """
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
