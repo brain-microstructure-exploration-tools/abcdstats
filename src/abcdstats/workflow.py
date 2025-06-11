@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import copy
 import pathlib
+from typing import Dict, List, Union
 
 import nilearn.maskers
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import yaml
+from typing_extensions import TypeAlias
+
+BasicValue: TypeAlias = Union[str, int, float]
+ConfigurationValue: TypeAlias = Union[BasicValue, List[BasicValue]]
+ConfigurationType: TypeAlias = Dict[str, Union[ConfigurationValue, "ConfigurationType"]]
 
 
 class Basic:
@@ -18,31 +25,46 @@ class Basic:
     def __init__(self, *, yaml_file: str | pathlib.Path | None = None) -> None:
         # globally useful values
         self.join_keys: list[str] = ["src_subject_id", "eventname"]
-        # Default values that are in the configuration only once
-        self.minimum_perplexity_default: float = 1.1
-        self.background_index_default: int = 0
-        # Defaults values that can be in the configuration multiple times
-        self.longitudinal_default: list[str] = ["intercept"]
-        self.is_missing_default: list[Any] = ["", np.nan]
-        self.convert_default: dict[Any, Any] = {}
+        self.default_config = {}
+        """
+        # If we want to supply defaults for the user, we could use the following:
+        variable_default = {"convert": [], "handle_missing": "invalidate", "is_missing": ["", np.nan]}
+        self.default_config = {
+            "tested_variables": {
+                "variable_default": variable_default,
+            },
+            "target_variables": {
+                "segmentation": {"background_index": 0},
+            },
+            "confounding_variables": {
+                "minimum_perplexity": 1.0,
+                "variable_default": {**variable_default, "longitudinal": ["intercept"]},
+            },
+        }
+        """
+        self.config = copy.deepcopy(self.default_config)
 
         if yaml_file is not None:
             self.configure(yaml_file=yaml_file)
 
-    def configure(self, *, yaml_file: str | pathlib.Path) -> None:
-        # TODO: If configure is called a subsequent time, only overwrite values that are newly supplied?
-        with pathlib.Path(yaml_file).open("r") as f:
-            self.config = yaml.safe_load(f)
+    def copy_keys_into(self, *, src: ConfigurationType, dest: ConfigurationType) -> None:
+        # Note: this is not a deep copy
+        for key, value in src.items():
+            if isinstance(value, ConfigurationType) and key in dest and isinstance(dest[key], ConfigurationType):
+                self.copy_keys_into(src=value, dest=dest[key])
+            else:
+                dest[key] = value
 
+    def configure(self, *, yaml_file: str | pathlib.Path, clear: bool = False) -> None:
+        if clear:
+            self.config = copy.deepcopy(self.default_config)
+        with pathlib.Path(yaml_file).open("r") as f:
+            self.copy_keys_into(src=yaml.safe_load(f), dest=self.config)
 
     def run(self) -> None:
         """
         TODO: Check that each affine_transform produced is np.all_close with the first
         TODO: Make sure that the images are in the same order for each numpy array
-        Shapes of the numpy arrays are
-          tested_input.shape == (number_images, number_ksads)
-          target_input.shape == (number_images, number_voxels)
-          confounding_input.shape == (number_images, number_confounding_vars)
         """
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
@@ -101,6 +123,8 @@ class Basic:
         # TODO: Invoke matplotlib
 
     def getSourceImages(self) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], pd.core.frame.DataFrame]:
+        # TODO: Load them lazily, e.g. with nibabel.load (using nibabel.ArrayProxy), so that if we call permuted_ols for
+        #       only some voxels at a time, not all voxels need to be read in each time.
         # TODO: Write me
         pass
 
@@ -132,6 +156,14 @@ class Basic:
         confounding_vars: npt.NDArray[np.float64],
         masker: nilearn.maskers.NiftiMasker,
     ) -> tuple[dict[str, npt.NDArray[np.float64]], npt.NDArray[np.float64]]:
+        """
+        Shapes of the numpy arrays are
+          tested_vars.shape == (number_images, number_ksads)
+          target_vars.shape == (number_images, number_voxels)
+          confounding_vars.shape == (number_images, number_confounding_vars)
+        """
+        # TODO: Change target_vars to be a list of lazy-loaded nibabel nifti images.  Once we run permuted_ols on some
+        #       voxels, we'll want to release the memory for those voxels to make room for the next set of voxels.
         # TODO: Write me
         pass
 
