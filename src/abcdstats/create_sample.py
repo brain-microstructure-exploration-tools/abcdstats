@@ -13,8 +13,9 @@ ConfigurationType: TypeAlias = Dict[str, Union[ConfigurationValue, "Configuratio
 
 sample_configuration: ConfigurationType = {
     "tested_variables": {
-        "source_file": "/data2/ABCD/abcd-5.0-tabular-data-extracted/core/mental-health/mh_y_ksads_ss.csv",
+        "source_directory": "/data2/ABCD/abcd-5.0-tabular-data-extracted",
         "variable_default": {
+            "file": "core/mental-health/mh_y_ksads_ss.csv",
             "convert": {"555": np.nan, "888": 0},
             "handle_missing": "invalidate",
             "type": "unordered",
@@ -29,6 +30,10 @@ sample_configuration: ConfigurationType = {
             "ksads_22_142_t": {"description": "Symptom - Insomnia, Past"},
             "ksads_22_970_t": {"description": "Diagnosis - SLEEP PROBLEMS, Past"},
             "ksads_2_11_t": {"description": "Symptom - Explosive Irritability, Past"},
+            "ksads_aud_raw_1174_t": {
+                "file": "core/substance-use/su_y_ksads_sud.csv",
+                "description": "Alcohol Use Disorder something",
+            },
         },
     },
     "target_variables": {
