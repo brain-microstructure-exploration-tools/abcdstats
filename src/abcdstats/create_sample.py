@@ -15,7 +15,7 @@ sample_configuration: ConfigurationType = {
     "tested_variables": {
         "source_directory": "/data2/ABCD/abcd-5.0-tabular-data-extracted",
         "variable_default": {
-            "file": "core/mental-health/mh_y_ksads_ss.csv",
+            "filename": "core/mental-health/mh_y_ksads_ss.csv",
             "convert": {"555": np.nan, "888": 0},
             "handle_missing": "invalidate",
             "type": "unordered",
@@ -31,17 +31,17 @@ sample_configuration: ConfigurationType = {
             "ksads_22_970_t": {"description": "Diagnosis - SLEEP PROBLEMS, Past"},
             "ksads_2_11_t": {"description": "Symptom - Explosive Irritability, Past"},
             "ksads_aud_raw_1174_t": {
-                "file": "core/substance-use/su_y_ksads_sud.csv",
+                "filename": "core/substance-use/su_y_ksads_sud.csv",
                 "description": "Alcohol Use Disorder something",
             },
         },
     },
     "target_variables": {
         "source_directory": "/data2/ABCD/gor-images/coregistered-images",
-        "subtype": "fa",
-        "mask": {"file": "/data2/ABCD/gor-images/gortemplate0.nii.gz", "threshold": 0.7},
+        "filname_pattern": r"^gorinput[0-9]{4}-.*\.nii\.gz$",
+        "mask": {"filename": "/data2/ABCD/gor-images/gortemplate0.nii.gz", "threshold": 0.7},
         "segmentation": {
-            "file": "/home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcd-data-exploration/prototype/segmentation_data_mrtrix.seg.nrrd",
+            "filename": "/home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcd-data-exploration/prototype/segmentation_data_mrtrix.seg.nrrd",
             "background_index": 0,
         },
     },
@@ -51,17 +51,17 @@ sample_configuration: ConfigurationType = {
         "variable_default": {"handle_missing": "invalidate", "type": "unordered", "longitudinal": ["intercept"]},
         "variable": {
             "interview_age": {
-                "file": "abcd-general/abcd_y_lt.csv",
+                "filename": "abcd-general/abcd_y_lt.csv",
                 "internal_name": "interview_age",
                 "type": "ordered",
                 "longitudinal": ["intercept", "slope"],
             },
-            "site_id_l": {"file": "abcd-general/abcd_y_lt.csv", "handle_missing": "together"},
+            "site_id_l": {"filename": "abcd-general/abcd_y_lt.csv", "handle_missing": "together"},
             "demo_gender_id_v2": {
-                "file": "gender-identity-sexual-health/gish_p_gi.csv",
+                "filename": "gender-identity-sexual-health/gish_p_gi.csv",
                 "convert": {"777": "", "999": ""},
             },
-            "rel_family_id": {"file": "abcd-general/abcd_y_lt.csv", "handle_missing": "together"},
+            "rel_family_id": {"filename": "abcd-general/abcd_y_lt.csv", "handle_missing": "together"},
         },
     },
     "output": {"destination_directory": "TODO:", "local_maxima": {"minimum_peak": 0.1, "minimum_radius": 3}},
