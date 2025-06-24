@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import pathlib
 import re
-from typing import TypeAlias, Union, cast
+from typing import Any, TypeAlias, Union, cast
 
 import nibabel as nib  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import nilearn.maskers  # type: ignore[import-not-found,import-untyped,unused-ignore]
@@ -13,7 +13,7 @@ import pandas as pd  # type: ignore[import-not-found,import-untyped,unused-ignor
 import yaml  # type: ignore[import-not-found,import-untyped,unused-ignore]
 
 BasicValue: TypeAlias = str | int | float
-ConfigurationValue: TypeAlias = BasicValue | list[BasicValue]
+ConfigurationValue: TypeAlias = BasicValue | list[Any]
 ConfigurationType: TypeAlias = dict[str, Union[ConfigurationValue, "ConfigurationType"]]
 
 
@@ -64,8 +64,8 @@ class Basic:
 
     def configure(self, *, yaml_file: str | pathlib.Path | None) -> None:
         if yaml_file is not None:
-            with pathlib.Path(yaml_file).open("r", encoding="utf-8") as f:
-                self.copy_keys_into(src=yaml.safe_load(f), dest=self.config)
+            with pathlib.Path(yaml_file).open("r", encoding="utf-8") as file:
+                self.copy_keys_into(src=yaml.safe_load(file), dest=self.config)
         else:
             # The user requests the system defaults
             self.config = copy.deepcopy(self.config_default)
@@ -112,7 +112,7 @@ class Basic:
         tested_data_array: npt.NDArray[np.float64]
         # Assembly can include conversion to one-hot, as well as use as intercept or
         # slope random effects.
-        tested_data_frame, tested_data_array = self.get_test_data()
+        tested_data_frame, tested_data_array = self.get_tested_data()
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
         confounding_data_frame: pd.core.frame.DataFrame
@@ -149,6 +149,9 @@ class Basic:
         npt.NDArray[np.float64],
         pd.core.frame.DataFrame,
     ]:
+        # TODO: Recognize whether filename is relative or absolute and treat it
+        #       accordingly
+
         # Throw exception if these fields are needed but not supplied
         directory: pathlib.Path = pathlib.Path(
             cast(
@@ -217,7 +220,9 @@ class Basic:
         # TODO: Write me
         return np.zeros((), dtype=np.float64), np.zeros((), dtype=np.float64)
 
-    def get_test_data(self) -> tuple[pd.core.frame.DataFrame, npt.NDArray[np.float64]]:
+    def get_tested_data(
+        self,
+    ) -> tuple[pd.core.frame.DataFrame, npt.NDArray[np.float64]]:
         # TODO: Write me
         return pd.core.frame.DataFrame(), np.zeros((), dtype=np.float64)
 

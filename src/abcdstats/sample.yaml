@@ -1,68 +1,1314 @@
-"tested_variables":
-  "source_directory": "/data2/ABCD/abcd-5.0-tabular-data-extracted"
-  "variable_default":
-    "filename": "core/mental-health/mh_y_ksads_ss.csv"
-    "convert":
-      "555": !!float ".nan"
-      "888": !!int "0"
-    "handle_missing": "invalidate"
-    "type": "unordered"
-    "is_missing":
+tested_variables:
+  source_directory: /data2/ABCD/abcd-5.0-tabular-data-extracted
+  variable_default:
+    filename: core/mental-health/mh_y_ksads_ss.csv
+    convert:
+      "555": .nan
+      "888": 0
+    handle_missing: invalidate
+    type: unordered
+    is_missing:
       - ""
-      - !!float ".nan"
-  "variable":
-    "ksads_1_187_t":
-      "description": "Symptom - No two month symptom-free interval, Present"
-      "internal_name": "ksads_1_187_t"
-    "ksads_1_188_t":
-      "description": "Symptom - No two month symptom-free interval, Past"
-    "ksads_22_142_t":
-      "description": "Symptom - Insomnia, Past"
-    "ksads_22_970_t":
-      "description": "Diagnosis - SLEEP PROBLEMS, Past"
-    "ksads_2_11_t":
-      "description": "Symptom - Explosive Irritability, Past"
-    "ksads_aud_raw_1174_t":
-      "filename": "core/substance-use/su_y_ksads_sud.csv"
-      "description": "Alcohol Use Disorder something"
-"target_variables":
-  "source_directory": "/data2/ABCD/gor-images/coregistered-images"
-  "filname_pattern": "^gorinput[0-9]{4}-.*\\.nii\\.gz$"
-  "mask":
-    "filename": "/data2/ABCD/gor-images/gortemplate0.nii.gz"
-    "threshold": !!float "0.7"
-  "segmentation":
-    "filename": "/home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcd-data-exploration/prototype/segmentation_data_mrtrix.seg.nrrd"
-    "background_index": !!int "0"
-"confounding_variables":
-  "source_directory": "/data2/ABCD/abcd-5.0-tabular-data-extracted/core"
-  "minimum_perplexity": !!float "1.1"
-  "variable_default":
-    "handle_missing": "invalidate"
-    "type": "unordered"
-    "longitudinal":
-      - "intercept"
-  "variable":
-    "interview_age":
-      "filename": "abcd-general/abcd_y_lt.csv"
-      "internal_name": "interview_age"
-      "type": "ordered"
-      "longitudinal":
-        - "intercept"
-        - "slope"
-    "site_id_l":
-      "filename": "abcd-general/abcd_y_lt.csv"
-      "handle_missing": "together"
-    "demo_gender_id_v2":
-      "filename": "gender-identity-sexual-health/gish_p_gi.csv"
-      "convert":
+      - .nan
+  variable:
+    ksads_1_187_t:
+      description: Symptom - No two month symptom-free interval, Present
+      internal_name: ksads_1_187_t
+    ksads_1_188_t:
+      description: Symptom - No two month symptom-free interval, Past
+    ksads_22_142_t:
+      description: Symptom - Insomnia, Past
+    ksads_22_970_t:
+      description: Diagnosis - SLEEP PROBLEMS, Past
+    ksads_2_11_t:
+      description: Symptom - Explosive Irritability, Past
+    ksads_aud_raw_1174_t:
+      filename: core/substance-use/su_y_ksads_sud.csv
+      description: Alcohol Use Disorder something
+target_variables:
+  source_directory: /data2/ABCD/gor-images/coregistered-images
+  table_of_filenames_and_metadata: my_table_of_filenames_and_metadata.csv
+  individual_filenames_and_metadata:
+    - filename: gorinput0000-modality0-sub-NDARINV5U642ALM_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV5U642ALM
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+      description: This is by far the most interesting of the images
+    - filename: gorinput0002-modality0-sub-NDARINV70FU58C1_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV70FU58C1
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0004-modality0-sub-NDARINVFVN56Y3J_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVFVN56Y3J
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0006-modality0-sub-NDARINVW17JBT47_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVW17JBT47
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0008-modality0-sub-NDARINV41E41YFZ_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV41E41YFZ
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0010-modality0-sub-NDARINVB8234KWV_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVB8234KWV
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0012-modality0-sub-NDARINVWRCZDDAY_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVWRCZDDAY
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0014-modality0-sub-NDARINVEP4T9K93_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVEP4T9K93
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0016-modality0-sub-NDARINVED05HV5A_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVED05HV5A
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0018-modality0-sub-NDARINVJUK1TMPK_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVJUK1TMPK
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0020-modality0-sub-NDARINVKMVGX7UJ_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVKMVGX7UJ
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0022-modality0-sub-NDARINVTTCZ6U1F_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVTTCZ6U1F
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0024-modality0-sub-NDARINV1CV6NNKT_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV1CV6NNKT
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0026-modality0-sub-NDARINV4Z6WBWBG_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV4Z6WBWBG
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0028-modality0-sub-NDARINVZVK7PB78_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVZVK7PB78
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0030-modality0-sub-NDARINVNERE3UUN_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVNERE3UUN
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0032-modality0-sub-NDARINVEYAX14LC_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVEYAX14LC
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0034-modality0-sub-NDARINVGFRL1TJF_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVGFRL1TJF
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0036-modality0-sub-NDARINV5U1CRWKY_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV5U1CRWKY
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0038-modality0-sub-NDARINVABLFF21T_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVABLFF21T
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0040-modality0-sub-NDARINVJ6ZXXE3T_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVJ6ZXXE3T
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0042-modality0-sub-NDARINVUU2N14ZU_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVUU2N14ZU
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0044-modality0-sub-NDARINVRN6LY8RU_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVRN6LY8RU
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0046-modality0-sub-NDARINVB349E4D3_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVB349E4D3
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0048-modality0-sub-NDARINV9N7VAA7U_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV9N7VAA7U
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0050-modality0-sub-NDARINVG19M2F39_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVG19M2F39
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0052-modality0-sub-NDARINVBF8H4PR1_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVBF8H4PR1
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0054-modality0-sub-NDARINVVLHZP6FR_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVVLHZP6FR
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0056-modality0-sub-NDARINV591LR2LK_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV591LR2LK
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0058-modality0-sub-NDARINVF7K681U5_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVF7K681U5
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0060-modality0-sub-NDARINV2XDH23JX_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV2XDH23JX
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0062-modality0-sub-NDARINV99XGJFE8_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV99XGJFE8
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0064-modality0-sub-NDARINVK6XKYTM1_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVK6XKYTM1
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0066-modality0-sub-NDARINV8FYWK4N5_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV8FYWK4N5
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0068-modality0-sub-NDARINVWF7C1DEL_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVWF7C1DEL
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0070-modality0-sub-NDARINVNWYV2A50_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVNWYV2A50
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0072-modality0-sub-NDARINVK6HKNVP1_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVK6HKNVP1
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0074-modality0-sub-NDARINV94TFREHY_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV94TFREHY
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0076-modality0-sub-NDARINV1K3LDK3L_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV1K3LDK3L
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0078-modality0-sub-NDARINVKJY3WLAB_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVKJY3WLAB
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0080-modality0-sub-NDARINV9FNUYHC2_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV9FNUYHC2
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0082-modality0-sub-NDARINVP5BUWK7E_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVP5BUWK7E
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0084-modality0-sub-NDARINV2U3DNEET_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV2U3DNEET
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0086-modality0-sub-NDARINV1EECRFPM_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV1EECRFPM
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0088-modality0-sub-NDARINVGYEKLK44_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVGYEKLK44
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0090-modality0-sub-NDARINVVB04BHVZ_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVVB04BHVZ
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0092-modality0-sub-NDARINVHPNB07E7_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVHPNB07E7
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0094-modality0-sub-NDARINVEXB1B45G_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVEXB1B45G
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0096-modality0-sub-NDARINV3B1CZ5GM_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV3B1CZ5GM
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0098-modality0-sub-NDARINVUPKM7CMH_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVUPKM7CMH
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0100-modality0-sub-NDARINV0Y8YJ2UR_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV0Y8YJ2UR
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0102-modality0-sub-NDARINV1JAFHY62_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV1JAFHY62
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0104-modality0-sub-NDARINVMKWH6RED_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVMKWH6RED
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0106-modality0-sub-NDARINV7N6YDNYD_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV7N6YDNYD
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0108-modality0-sub-NDARINV0MXJ7AZN_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV0MXJ7AZN
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0110-modality0-sub-NDARINVX5JWUPX9_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVX5JWUPX9
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0112-modality0-sub-NDARINV7PXH7ZBR_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV7PXH7ZBR
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0114-modality0-sub-NDARINV3FTG4M1H_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV3FTG4M1H
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0116-modality0-sub-NDARINVWKNKABEN_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVWKNKABEN
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0118-modality0-sub-NDARINV5UAWUVFC_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV5UAWUVFC
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0120-modality0-sub-NDARINV10F7NTCV_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV10F7NTCV
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0122-modality0-sub-NDARINV665J58DF_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV665J58DF
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0124-modality0-sub-NDARINVP7CPVWNU_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVP7CPVWNU
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0126-modality0-sub-NDARINVTA165FA9_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVTA165FA9
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0128-modality0-sub-NDARINVHG9AE2V9_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVHG9AE2V9
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0130-modality0-sub-NDARINVLN9ZEHNH_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVLN9ZEHNH
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0132-modality0-sub-NDARINVCP854T1A_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVCP854T1A
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0134-modality0-sub-NDARINV8HCCN8CF_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV8HCCN8CF
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0136-modality0-sub-NDARINVRH5BUPMB_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVRH5BUPMB
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0138-modality0-sub-NDARINVFZ97ZA0Z_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVFZ97ZA0Z
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0140-modality0-sub-NDARINVZB0WCRDU_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVZB0WCRDU
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0142-modality0-sub-NDARINVA9GJMD11_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVA9GJMD11
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0144-modality0-sub-NDARINVH3CTH69V_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVH3CTH69V
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0146-modality0-sub-NDARINV1T4GDEXG_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV1T4GDEXG
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0148-modality0-sub-NDARINVG8RB25N1_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVG8RB25N1
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0150-modality0-sub-NDARINV8Y8A8NU0_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV8Y8A8NU0
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0152-modality0-sub-NDARINV5UJ10BMU_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV5UJ10BMU
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0154-modality0-sub-NDARINVEPFAURHA_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVEPFAURHA
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0156-modality0-sub-NDARINVGGTAVRP3_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVGGTAVRP3
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0158-modality0-sub-NDARINVTT9JRJDR_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVTT9JRJDR
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0160-modality0-sub-NDARINV1YE699WK_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV1YE699WK
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0162-modality0-sub-NDARINVAB3XR5P1_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVAB3XR5P1
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0164-modality0-sub-NDARINVPGV8M0Z4_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVPGV8M0Z4
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0166-modality0-sub-NDARINV9XHWXY3G_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV9XHWXY3G
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0168-modality0-sub-NDARINVV9D0WWZM_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVV9D0WWZM
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0170-modality0-sub-NDARINV17UGGHGJ_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV17UGGHGJ
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0172-modality0-sub-NDARINVR6V7FU8U_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVR6V7FU8U
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0174-modality0-sub-NDARINVNPDJ80MX_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVNPDJ80MX
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0176-modality0-sub-NDARINVZBH4VPZJ_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVZBH4VPZJ
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0178-modality0-sub-NDARINV5T9K540P_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV5T9K540P
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0180-modality0-sub-NDARINV8RN0AJRP_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV8RN0AJRP
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0182-modality0-sub-NDARINVP45PB0NA_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVP45PB0NA
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0184-modality0-sub-NDARINVZ5DDK4LH_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVZ5DDK4LH
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0186-modality0-sub-NDARINV7D8F79P8_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV7D8F79P8
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0188-modality0-sub-NDARINV62P1BPWE_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV62P1BPWE
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0190-modality0-sub-NDARINVXGK0BB15_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVXGK0BB15
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0192-modality0-sub-NDARINVFJLN9GJA_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVFJLN9GJA
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0194-modality0-sub-NDARINVAE6F0NRP_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVAE6F0NRP
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0196-modality0-sub-NDARINVVLC9RFM1_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVVLC9RFM1
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0198-modality0-sub-NDARINVWZJ7FKG5_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVWZJ7FKG5
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0200-modality0-sub-NDARINVGCDY2UAK_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVGCDY2UAK
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0202-modality0-sub-NDARINVKV552N4Y_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVKV552N4Y
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0204-modality0-sub-NDARINVUX8RG3BK_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVUX8RG3BK
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0206-modality0-sub-NDARINVGYZ787M8_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVGYZ787M8
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0208-modality0-sub-NDARINVUN55AXTE_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVUN55AXTE
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0210-modality0-sub-NDARINVPGB4E8R7_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVPGB4E8R7
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0212-modality0-sub-NDARINVX8D3JRAH_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVX8D3JRAH
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0214-modality0-sub-NDARINV1F6MVGKL_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV1F6MVGKL
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0216-modality0-sub-NDARINVV332W2B5_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVV332W2B5
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0218-modality0-sub-NDARINV86B2YCA7_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV86B2YCA7
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0220-modality0-sub-NDARINVLWRKNUN1_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVLWRKNUN1
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0222-modality0-sub-NDARINVL8XFXVEJ_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVL8XFXVEJ
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0224-modality0-sub-NDARINV9PTH3VTR_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV9PTH3VTR
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0226-modality0-sub-NDARINV33NHTKYF_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV33NHTKYF
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0228-modality0-sub-NDARINVBW02TMBE_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVBW02TMBE
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0230-modality0-sub-NDARINVV25NXUTA_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVV25NXUTA
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0232-modality0-sub-NDARINVHZ1URTX6_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVHZ1URTX6
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0234-modality0-sub-NDARINVJHM4CTAP_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVJHM4CTAP
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0236-modality0-sub-NDARINV52AU0VED_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV52AU0VED
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0238-modality0-sub-NDARINVRJAREKD1_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVRJAREKD1
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0240-modality0-sub-NDARINVY3K7M6M4_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVY3K7M6M4
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0242-modality0-sub-NDARINVVZR097LZ_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVVZR097LZ
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0244-modality0-sub-NDARINVN8V7KR39_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVN8V7KR39
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0246-modality0-sub-NDARINV1R5PJCK4_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV1R5PJCK4
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0248-modality0-sub-NDARINV5VP4RK9P_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV5VP4RK9P
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0250-modality0-sub-NDARINV0U8DTCDG_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV0U8DTCDG
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0252-modality0-sub-NDARINVDZLD38UM_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVDZLD38UM
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0254-modality0-sub-NDARINV3GZNM6F8_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV3GZNM6F8
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0256-modality0-sub-NDARINVLK12P4A5_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVLK12P4A5
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0258-modality0-sub-NDARINV0LN1KD13_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV0LN1KD13
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0260-modality0-sub-NDARINVPR3T5MAK_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVPR3T5MAK
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0262-modality0-sub-NDARINVAF517NF3_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVAF517NF3
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0264-modality0-sub-NDARINV042UJKFB_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV042UJKFB
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0266-modality0-sub-NDARINVCTFL718M_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVCTFL718M
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0268-modality0-sub-NDARINV4BKN34GB_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV4BKN34GB
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0270-modality0-sub-NDARINVH6K9F426_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVH6K9F426
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0272-modality0-sub-NDARINVWY3GY9NE_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVWY3GY9NE
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0274-modality0-sub-NDARINVMCYKEL17_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVMCYKEL17
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0276-modality0-sub-NDARINVGVPPRTDN_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVGVPPRTDN
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0278-modality0-sub-NDARINV7L2M29CY_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV7L2M29CY
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0280-modality0-sub-NDARINV137Y0WR8_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV137Y0WR8
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0282-modality0-sub-NDARINVK81PDBDN_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVK81PDBDN
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0284-modality0-sub-NDARINV54VT5R72_ses-4YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV54VT5R72
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0286-modality0-sub-NDARINV5M9Y06N7_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV5M9Y06N7
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0288-modality0-sub-NDARINVTM4YT5UD_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVTM4YT5UD
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0290-modality0-sub-NDARINVUWRM3PWZ_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVUWRM3PWZ
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0292-modality0-sub-NDARINVTTDWMW0G_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVTTDWMW0G
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0294-modality0-sub-NDARINV49PA9KKY_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV49PA9KKY
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0296-modality0-sub-NDARINVXWG8C94J_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVXWG8C94J
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0298-modality0-sub-NDARINVNR53UYUX_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVNR53UYUX
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0300-modality0-sub-NDARINVZLEFF9ZA_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVZLEFF9ZA
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0302-modality0-sub-NDARINV7BCF45XY_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV7BCF45XY
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0304-modality0-sub-NDARINVCE0TWGXM_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVCE0TWGXM
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0306-modality0-sub-NDARINVKGB957MU_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVKGB957MU
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0308-modality0-sub-NDARINVR2R52JP7_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVR2R52JP7
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0310-modality0-sub-NDARINV4W3GW9WL_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV4W3GW9WL
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0312-modality0-sub-NDARINVT8HC1Z30_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVT8HC1Z30
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0314-modality0-sub-NDARINV0CCVJ39W_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV0CCVJ39W
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0316-modality0-sub-NDARINV7W4K75L0_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV7W4K75L0
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0318-modality0-sub-NDARINVV36RW8GC_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVV36RW8GC
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0320-modality0-sub-NDARINV6PK3TH3F_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV6PK3TH3F
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0322-modality0-sub-NDARINVAT176RJ8_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVAT176RJ8
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0324-modality0-sub-NDARINVE26BNZDK_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVE26BNZDK
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0326-modality0-sub-NDARINV5MF8VMU6_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV5MF8VMU6
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0328-modality0-sub-NDARINV4GHXF68C_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV4GHXF68C
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0330-modality0-sub-NDARINVFEFFUF2J_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVFEFFUF2J
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0332-modality0-sub-NDARINV6LU3M80M_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV6LU3M80M
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0334-modality0-sub-NDARINVADW3JCNG_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVADW3JCNG
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0336-modality0-sub-NDARINVVKXBTBUE_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVVKXBTBUE
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0338-modality0-sub-NDARINVBXR1L7N8_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVBXR1L7N8
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0340-modality0-sub-NDARINVCKA8AFM8_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVCKA8AFM8
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0342-modality0-sub-NDARINVTUE4K1JE_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVTUE4K1JE
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0344-modality0-sub-NDARINVUZMRNA0C_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVUZMRNA0C
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0346-modality0-sub-NDARINVWECA1JN4_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVWECA1JN4
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0348-modality0-sub-NDARINVPZ1GC78K_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVPZ1GC78K
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0350-modality0-sub-NDARINV7VPBLMJ8_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV7VPBLMJ8
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0352-modality0-sub-NDARINV7NJLRBPW_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV7NJLRBPW
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0354-modality0-sub-NDARINVNX5G08HC_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVNX5G08HC
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0356-modality0-sub-NDARINV97RBCNE4_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV97RBCNE4
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0358-modality0-sub-NDARINV1ET4JE3B_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV1ET4JE3B
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0360-modality0-sub-NDARINVK9N3BY03_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVK9N3BY03
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0362-modality0-sub-NDARINVDCE53AYC_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVDCE53AYC
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0364-modality0-sub-NDARINVLBJ8E0XH_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVLBJ8E0XH
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0366-modality0-sub-NDARINVVG1MF8K5_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVVG1MF8K5
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0368-modality0-sub-NDARINVV7JADB47_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVV7JADB47
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0370-modality0-sub-NDARINVE39X2HV4_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVE39X2HV4
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0372-modality0-sub-NDARINVXL9ZX21U_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVXL9ZX21U
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0374-modality0-sub-NDARINVVCEAYC27_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVVCEAYC27
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0376-modality0-sub-NDARINV3Z6H5XU0_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV3Z6H5XU0
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0378-modality0-sub-NDARINV3A81U14B_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV3A81U14B
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0380-modality0-sub-NDARINVWVWWBTF1_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVWVWWBTF1
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0382-modality0-sub-NDARINV4AGK770Z_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV4AGK770Z
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0384-modality0-sub-NDARINVHFYLF6V4_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVHFYLF6V4
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0386-modality0-sub-NDARINVDYP4KLFJ_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVDYP4KLFJ
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0388-modality0-sub-NDARINV2T6WFDFJ_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV2T6WFDFJ
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0390-modality0-sub-NDARINVRZC3LU8F_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVRZC3LU8F
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0392-modality0-sub-NDARINVDTWEMX2Z_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVDTWEMX2Z
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0394-modality0-sub-NDARINVFXC7A0T2_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVFXC7A0T2
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0396-modality0-sub-NDARINVEV1EYRCB_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVEV1EYRCB
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0398-modality0-sub-NDARINV64VXDF5P_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV64VXDF5P
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0400-modality0-sub-NDARINV5PU4UNRW_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV5PU4UNRW
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0402-modality0-sub-NDARINVDGWRT6PB_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVDGWRT6PB
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0404-modality0-sub-NDARINVBDGGPJYX_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVBDGGPJYX
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0406-modality0-sub-NDARINVT6F8N4WR_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVT6F8N4WR
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0408-modality0-sub-NDARINVYRCWU5F8_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVYRCWU5F8
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0410-modality0-sub-NDARINV2N1EAVTY_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV2N1EAVTY
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0412-modality0-sub-NDARINVF3XULUFD_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVF3XULUFD
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0414-modality0-sub-NDARINVHXHGMVPP_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVHXHGMVPP
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0416-modality0-sub-NDARINV3R9J4MH0_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV3R9J4MH0
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0418-modality0-sub-NDARINVTJVE3G6N_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVTJVE3G6N
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0420-modality0-sub-NDARINVJC4Y18YR_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVJC4Y18YR
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0422-modality0-sub-NDARINV6Y1WA4WE_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV6Y1WA4WE
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0424-modality0-sub-NDARINVTXDDBHFX_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVTXDDBHFX
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0426-modality0-sub-NDARINVUJ7CJMWD_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVUJ7CJMWD
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0428-modality0-sub-NDARINVFPDZ4C13_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVFPDZ4C13
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0430-modality0-sub-NDARINVRUGEM9AA_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVRUGEM9AA
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0432-modality0-sub-NDARINVUH4F3Z71_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVUH4F3Z71
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0434-modality0-sub-NDARINVJRPZT0NB_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVJRPZT0NB
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0436-modality0-sub-NDARINVVF539UBP_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVVF539UBP
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0438-modality0-sub-NDARINV81FXWN6L_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV81FXWN6L
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0440-modality0-sub-NDARINVG7TMENCV_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVG7TMENCV
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0442-modality0-sub-NDARINVAF7KTP72_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVAF7KTP72
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0444-modality0-sub-NDARINVMK65MX3T_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVMK65MX3T
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0446-modality0-sub-NDARINV21KEUZ1N_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV21KEUZ1N
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0448-modality0-sub-NDARINVTK5NYC8X_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVTK5NYC8X
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0450-modality0-sub-NDARINVA9E5RPZH_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVA9E5RPZH
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0452-modality0-sub-NDARINVLNMK5FAN_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVLNMK5FAN
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0454-modality0-sub-NDARINVMC1L92VA_ses-4YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVMC1L92VA
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0456-modality0-sub-NDARINVK8KZDZ2N_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVK8KZDZ2N
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0458-modality0-sub-NDARINVZ1WUT8NP_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVZ1WUT8NP
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0460-modality0-sub-NDARINV9RWN9ZGX_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV9RWN9ZGX
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0462-modality0-sub-NDARINV26E5WLZL_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV26E5WLZL
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0464-modality0-sub-NDARINV6G091ALC_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV6G091ALC
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0466-modality0-sub-NDARINVKCPJBCMV_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVKCPJBCMV
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0468-modality0-sub-NDARINVWENNTD21_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVWENNTD21
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0470-modality0-sub-NDARINV9PNVA22B_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV9PNVA22B
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0472-modality0-sub-NDARINV1PATDM0H_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV1PATDM0H
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0474-modality0-sub-NDARINVWT771AK6_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVWT771AK6
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0476-modality0-sub-NDARINVZF36X5F8_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVZF36X5F8
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0478-modality0-sub-NDARINV1MKWVMP1_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV1MKWVMP1
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0480-modality0-sub-NDARINV8U4HJYJ1_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV8U4HJYJ1
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0482-modality0-sub-NDARINV80AW193U_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV80AW193U
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0484-modality0-sub-NDARINV19P33RVR_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV19P33RVR
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0486-modality0-sub-NDARINVEYTXWY7X_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVEYTXWY7X
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0488-modality0-sub-NDARINV4Y828ZMP_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV4Y828ZMP
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0490-modality0-sub-NDARINV5L65JM7L_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV5L65JM7L
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0492-modality0-sub-NDARINV7ZEYLEV6_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV7ZEYLEV6
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0494-modality0-sub-NDARINV39YDHFR8_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV39YDHFR8
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0496-modality0-sub-NDARINV8JDM12TD_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV8JDM12TD
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0498-modality0-sub-NDARINV8U909UGM_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV8U909UGM
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0500-modality0-sub-NDARINVRP0XB0ZR_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVRP0XB0ZR
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0502-modality0-sub-NDARINV1ZK55NV1_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV1ZK55NV1
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0504-modality0-sub-NDARINV9AHK0Y6D_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV9AHK0Y6D
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0506-modality0-sub-NDARINVURUR52NZ_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVURUR52NZ
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0508-modality0-sub-NDARINVA4KJXLYH_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVA4KJXLYH
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0510-modality0-sub-NDARINV2K6WB3XJ_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV2K6WB3XJ
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0512-modality0-sub-NDARINVM7YD6387_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVM7YD6387
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0514-modality0-sub-NDARINVWBGB46VZ_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVWBGB46VZ
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0516-modality0-sub-NDARINV0AF2TMR4_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV0AF2TMR4
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0518-modality0-sub-NDARINVRLMPLLW6_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVRLMPLLW6
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0520-modality0-sub-NDARINV8N41W2W1_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV8N41W2W1
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0522-modality0-sub-NDARINVN31J6BXZ_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVN31J6BXZ
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0524-modality0-sub-NDARINV7PMXEN0M_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV7PMXEN0M
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0526-modality0-sub-NDARINV5CHM4BJG_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV5CHM4BJG
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0528-modality0-sub-NDARINV3GX8KHBN_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV3GX8KHBN
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0530-modality0-sub-NDARINVJ8A4A9P2_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVJ8A4A9P2
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0532-modality0-sub-NDARINVR76W27PF_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVR76W27PF
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0534-modality0-sub-NDARINVC4M8E621_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVC4M8E621
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0536-modality0-sub-NDARINV9RUX0DHA_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV9RUX0DHA
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0538-modality0-sub-NDARINVCY81EJ52_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVCY81EJ52
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0540-modality0-sub-NDARINV6TK12BD1_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV6TK12BD1
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0542-modality0-sub-NDARINVZJFZNNPJ_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVZJFZNNPJ
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0544-modality0-sub-NDARINV55NJ5JK5_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV55NJ5JK5
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0546-modality0-sub-NDARINV8WBVLP6D_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV8WBVLP6D
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0548-modality0-sub-NDARINVJDC5H6CH_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVJDC5H6CH
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0550-modality0-sub-NDARINVBNBBL7HY_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVBNBBL7HY
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0552-modality0-sub-NDARINV5UABVWT2_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV5UABVWT2
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0554-modality0-sub-NDARINVELK0KFTA_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVELK0KFTA
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0556-modality0-sub-NDARINVB8N5TFHV_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVB8N5TFHV
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0558-modality0-sub-NDARINV021403LF_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV021403LF
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0560-modality0-sub-NDARINVXGWM6XC8_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVXGWM6XC8
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0562-modality0-sub-NDARINVB2PT115G_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVB2PT115G
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0564-modality0-sub-NDARINV29MZKR3H_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV29MZKR3H
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0566-modality0-sub-NDARINVPAT718Y8_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVPAT718Y8
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0568-modality0-sub-NDARINVENLU0EN4_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVENLU0EN4
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0570-modality0-sub-NDARINV8GWBGTAB_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV8GWBGTAB
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0572-modality0-sub-NDARINV33FEYMMB_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV33FEYMMB
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0574-modality0-sub-NDARINVXAPU8YP9_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVXAPU8YP9
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0576-modality0-sub-NDARINVNX6AEDBV_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVNX6AEDBV
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0578-modality0-sub-NDARINVGVW71W09_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVGVW71W09
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0580-modality0-sub-NDARINVVZ679N9G_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVVZ679N9G
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0582-modality0-sub-NDARINV58XVZFMC_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV58XVZFMC
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0584-modality0-sub-NDARINVWL7D3D23_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVWL7D3D23
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0586-modality0-sub-NDARINVKB7UD17H_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVKB7UD17H
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0588-modality0-sub-NDARINVFZPVDAUG_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVFZPVDAUG
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0590-modality0-sub-NDARINV5MYF77YV_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV5MYF77YV
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0592-modality0-sub-NDARINV4275X676_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV4275X676
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0594-modality0-sub-NDARINVC2VA4EY6_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVC2VA4EY6
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0596-modality0-sub-NDARINVHYYUJ7LR_ses-4YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVHYYUJ7LR
+      event_name: 4_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0598-modality0-sub-NDARINV3UZ9X88P_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV3UZ9X88P
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0600-modality0-sub-NDARINVGUWJN86W_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVGUWJN86W
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0602-modality0-sub-NDARINVPKK4CED4_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVPKK4CED4
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0604-modality0-sub-NDARINVVB893JHP_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVVB893JHP
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0606-modality0-sub-NDARINV3NMH509V_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV3NMH509V
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0608-modality0-sub-NDARINVW1BFMH04_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVW1BFMH04
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0610-modality0-sub-NDARINVE4YNZCW7_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVE4YNZCW7
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0612-modality0-sub-NDARINV4J7L4Y8X_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV4J7L4Y8X
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0614-modality0-sub-NDARINVMTVTFDC0_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVMTVTFDC0
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0616-modality0-sub-NDARINVKC7ZC9VX_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVKC7ZC9VX
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0618-modality0-sub-NDARINV0JAG7BGC_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV0JAG7BGC
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0620-modality0-sub-NDARINV3RTWYZX5_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV3RTWYZX5
+      event_name: baseline_year_1_arm_1
+      modality: fa
+  mask:
+    filename: /data2/ABCD/gor-images/gortemplate0.nii.gz
+    threshold: 0.7
+  segmentation:
+    filename: /home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcd-data-exploration/prototype/segmentation_data_mrtrix.seg.nrrd
+    background_index: 0
+confounding_variables:
+  source_directory: /data2/ABCD/abcd-5.0-tabular-data-extracted/core
+  minimum_perplexity: 1.1
+  variable_default:
+    handle_missing: invalidate
+    type: unordered
+    longitudinal:
+      - intercept
+  variable:
+    interview_age:
+      filename: abcd-general/abcd_y_lt.csv
+      internal_name: interview_age
+      type: ordered
+      longitudinal:
+        - intercept
+        - slope
+    site_id_l:
+      filename: abcd-general/abcd_y_lt.csv
+      handle_missing: together
+    demo_gender_id_v2:
+      filename: gender-identity-sexual-health/gish_p_gi.csv
+      convert:
         "777": ""
         "999": ""
-    "rel_family_id":
-      "filename": "abcd-general/abcd_y_lt.csv"
-      "handle_missing": "together"
-"output":
-  "destination_directory": "TODO:"
-  "local_maxima":
-    "minimum_peak": !!float "0.1"
-    "minimum_radius": !!int "3"
+    rel_family_id:
+      filename: abcd-general/abcd_y_lt.csv
+      handle_missing: together
+output:
+  destination_directory: "TODO:"
+  local_maxima:
+    minimum_peak: 0.1
+    minimum_radius: 3
