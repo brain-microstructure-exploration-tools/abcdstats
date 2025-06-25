@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 import pathlib
-import re
 from typing import Any, TypeAlias, Union, cast
 
 import nibabel as nib  # type: ignore[import-not-found,import-untyped,unused-ignore]
@@ -71,13 +70,7 @@ class Basic:
             self.config = copy.deepcopy(self.config_default)
 
     def run(self) -> None:
-        """
-        TODO: Check that each affine_transform produced is np.all_close with the first
-        TODO: Make sure that the images are in the same order for each numpy array
-        """
-
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
-        # TODO: Note that YAML file will specify "fa" vs. "md" images
         source_images_voxels: list[nib.filebasedimages.FileBasedImage]
         source_images_affine_transform: npt.NDArray[np.float64]
         source_images_metadata: pd.core.frame.DataFrame
@@ -142,6 +135,104 @@ class Basic:
         )
         # TODO: Invoke matplotlib
 
+    def get_source_images_table_and_individuals(
+        self,
+    ) -> tuple[pathlib.Path | None, list[dict[str, Any]] | None]:
+        mesg: str
+        targets: ConfigurationType
+        targets = cast(
+            ConfigurationType, copy.deepcopy(self.config["target_variables"])
+        )
+
+        # Find source filenames and their metadata
+        source_directory: pathlib.Path | None
+        source_directory = (
+            pathlib.Path(cast(str, targets["source_directory"]))
+            if "source_directory" in targets
+            else None
+        )
+        table: pathlib.Path | None
+        table = (
+            pathlib.Path(cast(str, targets["table_of_filenames_and_metadata"]))
+            if "table_of_filenames_and_metadata" in targets
+            else None
+        )
+        individuals: list[dict[str, Any]] | None
+        individuals = (
+            cast(
+                list[dict[str, Any]],
+                targets["individual_filenames_and_metadata"],
+            )
+            if "individual_filenames_and_metadata" in targets
+            else None
+        )
+        if table is None and individuals is None:
+            mesg = (
+                "Must supply at least one of `table_of_filenames_and_metadata`"
+                " and `individual_filenames_and_metadata`"
+            )
+            raise KeyError(mesg)
+        if source_directory is not None and table is not None:
+            table = source_directory / table
+        if source_directory is not None and individuals is not None:
+            for entry in individuals:
+                if "filename" in entry:
+                    entry["filename"] = str(
+                        source_directory / pathlib.Path(entry["filename"])
+                    )
+        return table, individuals
+
+    def get_source_images_metadata(
+        self, table: pathlib.Path | None, individuals: list[dict[str, Any]] | None
+    ) -> pd.core.frame.DataFrame:
+        metadata: pd.core.frame.Dataframe = pd.concat(
+            [
+                pd.read_csv(table) if table is not None else None,
+                pd.Dataframe(individuals) if individuals is not None else None,
+            ],
+            ignore_index=True,
+        )
+        return metadata
+
+    def get_voxels_and_affine(
+        self, metadata: pd.core.frame.DataFrame
+    ) -> tuple[
+        list[nib.filebasedimages.FileBasedImage],
+        npt.NDArray[np.float64],
+    ]:
+        mesg: str
+        # Create table of metadata to describe each input file
+
+        # Create nib.filebasedimages.FileBasedImage for each input file.  Note that the
+        # order of the elements in `voxels` must match the order of the rows in
+        # `metadata`.
+        voxels: list[nib.filebasedimages.FileBasedImage] = [
+            nib.load(path)  # type: ignore[attr-defined,unused-ignore]
+            for path in metadata["filename"].tolist()
+        ]
+
+        # Check that shapes match
+        all_shapes: list[tuple[int, ...]] = [img.shape for img in voxels]
+        if not all(all_shapes[0] == all_shapes[i] for i in range(1, len(all_shapes))):
+            mesg = "The target images are not all the same shape"
+            raise ValueError(mesg)
+
+        # Find the common affine transformation
+        all_affines: list[npt.NDArray[np.float64]] = [img.affine for img in voxels]
+        if not all(
+            np.allclose(all_affines[0], all_affines[i])
+            for i in range(1, len(all_affines))
+        ):
+            mesg = (
+                "The affine transformation matrices for the images do not all match;"
+                " are the images registered?"
+            )
+            raise ValueError(mesg)
+        affine_transform: npt.NDArray[np.float64] = (
+            all_affines[0] if len(all_affines) > 0 else None
+        )
+        return voxels, affine_transform
+
     def get_source_images(
         self,
     ) -> tuple[
@@ -149,52 +240,19 @@ class Basic:
         npt.NDArray[np.float64],
         pd.core.frame.DataFrame,
     ]:
-        # TODO: Recognize whether filename is relative or absolute and treat it
-        #       accordingly
+        table: pathlib.Path | None
+        individuals: list[dict[str, Any]] | None
+        table, individuals = self.get_source_images_table_and_individuals()
 
-        # Throw exception if these fields are needed but not supplied
-        directory: pathlib.Path = pathlib.Path(
-            cast(
-                str,
-                cast(ConfigurationType, self.config["target_variables"])[
-                    "source_directory"
-                ],
-            )
+        metadata: pd.core.frame.Dataframe = self.get_source_images_metadata(
+            table, individuals
         )
-        pattern: str = cast(
-            str,
-            cast(ConfigurationType, self.config["target_variables"])[
-                "filename_pattern"
-            ],
-        )
-        filename_list: list[pathlib.Path] = [
-            directory / filename
-            for filename in directory.iterdir()
-            if bool(re.match(pattern, str(filename)))
-        ]
-        # TODO: Build metadata from filenames???
-        source_images_metadata: pd.core.frame.DataFrame = pd.core.frame.DataFrame()
-        source_images_voxels: list[nib.filebasedimages.FileBasedImage] = [
-            nib.load(path)  # type: ignore[attr-defined,unused-ignore]
-            for path in filename_list  # type: ignore[attr-defined,unused-ignore]
-        ]
-        # TODO: Check that there is at least one image with at least one voxel
-        # TODO: Check that shapes match
-        # TODO: Check that affines match
-        source_images_affine_transform: npt.NDArray[np.float64] = source_images_voxels[
-            0
-        ].affine  # type: ignore[attr-defined,unused-ignore]
 
-        # Need this later
-        # number_values: int = sum([math.prod(img.shape) for img in source_images_voxels])
-        # max_values_per_iteration: int = 1_000_000_000
-        # number_iterations = math.ceil(number_values / max_values_per_iteration)
+        voxels: list[nib.filebasedimages.FileBasedImage]
+        affine_transform: npt.NDArray[np.float64]
+        voxels, affine_transform = self.get_voxels_and_affine(metadata)
 
-        return (
-            source_images_voxels,
-            source_images_affine_transform,
-            source_images_metadata,
-        )
+        return voxels, affine_transform, metadata
 
     def get_source_mask(
         self,
@@ -245,7 +303,13 @@ class Basic:
           tested_vars.shape == (number_images, number_ksads)
           target_vars.shape == (number_images, number_voxels)
           confounding_vars.shape == (number_images, number_confounding_vars)
+
+        Need this later
+          number_values: int = sum([math.prod(img.shape) for img in source_images_voxels])
+          max_values_per_iteration: int = 1_000_000_000
+          number_iterations = math.ceil(number_values / max_values_per_iteration)
         """
+        # TODO: Should we handle multiple channel data too?
         # TODO: Change target_vars to be a list of lazy-loaded nibabel nifti images.
         #       Once we run permuted_ols on some voxels, we'll want to release the
         #       memory for those voxels to make room for the next set of voxels.
