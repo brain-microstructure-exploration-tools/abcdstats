@@ -1956,9 +1956,4 @@ sample_configuration: ConfigurationType = {
 # Write it out
 filename: str = "sample.yaml"
 with pathlib.Path(filename).open("w", encoding="utf-8") as file:
-    yaml.dump(
-        sample_configuration,
-        file,
-        default_flow_style=False,
-        sort_keys=False,
-    )
+    yaml.dump(sample_configuration, file, default_flow_style=False, sort_keys=False)

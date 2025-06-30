@@ -216,10 +216,7 @@ class Basic:
 
     def get_voxels_and_affine(
         self, metadata: pd.core.frame.DataFrame
-    ) -> tuple[
-        list[nib.filebasedimages.FileBasedImage],
-        npt.NDArray[np.float64],
-    ]:
+    ) -> tuple[list[nib.filebasedimages.FileBasedImage], npt.NDArray[np.float64]]:
         mesg: str
         # Create table of metadata to describe each input file
 
