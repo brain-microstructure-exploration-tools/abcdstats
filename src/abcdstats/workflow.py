@@ -6,6 +6,7 @@ from typing import Any, TypeAlias, Union, cast
 
 import nibabel as nib  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import nilearn.maskers  # type: ignore[import-not-found,import-untyped,unused-ignore]
+import nilearn.masking  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import numpy as np  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import numpy.typing as npt  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import pandas as pd  # type: ignore[import-not-found,import-untyped,unused-ignore]
@@ -46,11 +47,21 @@ class Basic:
                 "variable_default": {**variable_default, "longitudinal": ["intercept"]},
             },
         }
+
+        # First, initialize with defaults
         self.config: ConfigurationType
         self.configure(yaml_file=None)
-
+        # Second, use user-supplied values from file, if any
         if yaml_file is not None:
             self.configure(yaml_file=yaml_file)
+
+    def configure(self, *, yaml_file: str | pathlib.Path | None) -> None:
+        if yaml_file is not None:
+            with pathlib.Path(yaml_file).open("r", encoding="utf-8") as file:
+                self.copy_keys_into(src=yaml.safe_load(file), dest=self.config)
+        else:
+            # The user requests the system defaults
+            self.config = copy.deepcopy(self.config_default)
 
     def copy_keys_into(
         self, *, src: ConfigurationType, dest: ConfigurationType
@@ -60,14 +71,6 @@ class Basic:
                 self.copy_keys_into(src=value, dest=cast(ConfigurationType, dest[key]))
             else:
                 dest[key] = copy.deepcopy(value)
-
-    def configure(self, *, yaml_file: str | pathlib.Path | None) -> None:
-        if yaml_file is not None:
-            with pathlib.Path(yaml_file).open("r", encoding="utf-8") as file:
-                self.copy_keys_into(src=yaml.safe_load(file), dest=self.config)
-        else:
-            # The user requests the system defaults
-            self.config = copy.deepcopy(self.config_default)
 
     def run(self) -> None:
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
@@ -79,12 +82,9 @@ class Basic:
         )
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
-        source_mask_voxels: npt.NDArray[np.bool_]
-        source_mask_affine_transform: npt.NDArray[np.float64]
-        source_mask_masker: nilearn.maskers.NiftiMasker
-        source_mask_voxels, source_mask_affine_transform, source_mask_masker = (
-            self.get_source_mask()
-        )
+        source_mask_masker: nilearn.maskers.NiftiMasker | None
+        source_mask_affine_transform: npt.NDArray[np.float64] | None
+        source_mask_masker, source_mask_affine_transform = self.get_source_mask()
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
         whole_brain_voxels: npt.NDArray[np.float64]
@@ -135,14 +135,33 @@ class Basic:
         )
         # TODO: Invoke matplotlib
 
+    def get_source_images(
+        self,
+    ) -> tuple[
+        list[nib.filebasedimages.FileBasedImage],
+        npt.NDArray[np.float64],
+        pd.core.frame.DataFrame,
+    ]:
+        table: pathlib.Path | None
+        individuals: list[dict[str, Any]] | None
+        table, individuals = self.get_source_images_table_and_individuals()
+
+        metadata: pd.core.frame.Dataframe = self.get_source_images_metadata(
+            table, individuals
+        )
+
+        voxels: list[nib.filebasedimages.FileBasedImage]
+        affine_transform: npt.NDArray[np.float64]
+        voxels, affine_transform = self.get_voxels_and_affine(metadata)
+
+        return voxels, affine_transform, metadata
+
     def get_source_images_table_and_individuals(
         self,
     ) -> tuple[pathlib.Path | None, list[dict[str, Any]] | None]:
         mesg: str
         targets: ConfigurationType
-        targets = cast(
-            ConfigurationType, copy.deepcopy(self.config["target_variables"])
-        )
+        targets = cast(ConfigurationType, self.config["target_variables"])
 
         # Find source filenames and their metadata
         source_directory: pathlib.Path | None
@@ -157,11 +176,12 @@ class Basic:
             if "table_of_filenames_and_metadata" in targets
             else None
         )
+        # We will be modifying and returning `individuals` so make a deepcopy
         individuals: list[dict[str, Any]] | None
         individuals = (
             cast(
                 list[dict[str, Any]],
-                targets["individual_filenames_and_metadata"],
+                copy.deepcopy(targets["individual_filenames_and_metadata"]),
             )
             if "individual_filenames_and_metadata" in targets
             else None
@@ -233,38 +253,53 @@ class Basic:
         )
         return voxels, affine_transform
 
-    def get_source_images(
-        self,
-    ) -> tuple[
-        list[nib.filebasedimages.FileBasedImage],
-        npt.NDArray[np.float64],
-        pd.core.frame.DataFrame,
-    ]:
-        table: pathlib.Path | None
-        individuals: list[dict[str, Any]] | None
-        table, individuals = self.get_source_images_table_and_individuals()
-
-        metadata: pd.core.frame.Dataframe = self.get_source_images_metadata(
-            table, individuals
-        )
-
-        voxels: list[nib.filebasedimages.FileBasedImage]
-        affine_transform: npt.NDArray[np.float64]
-        voxels, affine_transform = self.get_voxels_and_affine(metadata)
-
-        return voxels, affine_transform, metadata
-
     def get_source_mask(
         self,
-    ) -> tuple[
-        npt.NDArray[np.bool_], npt.NDArray[np.float64], nilearn.maskers.NiftiMasker
-    ]:
-        # TODO: Write me
-        return (
-            np.zeros((), dtype=bool),
-            np.zeros((), dtype=np.float64),
-            nilearn.maskers.NiftiMasker(),
+    ) -> tuple[nilearn.maskers.NiftiMasker | None, npt.NDArray[np.float64] | None]:
+        targets: ConfigurationType
+        targets = cast(ConfigurationType, self.config["target_variables"])
+        source_directory: pathlib.Path | None
+        source_directory = (
+            pathlib.Path(cast(str, targets["source_directory"]))
+            if "source_directory" in targets
+            else None
         )
+        mask_config: ConfigurationType | None
+        mask_config = (
+            cast(ConfigurationType, targets["mask"]) if "mask" in targets else None
+        )
+        mask_filename: pathlib.Path | None
+        mask_filename = (
+            pathlib.Path(cast(str, mask_config["filename"]))
+            if mask_config is not None and "filename" in mask_config
+            else None
+        )
+        if source_directory is not None and mask_filename is not None:
+            mask_filename = source_directory / mask_filename
+        mask_image: nib.filebasedimages.FileBasedImage | None
+        mask_image = nib.load(mask_filename) if mask_filename is not None else None
+        mask_affine: npt.NDArray[np.float64] | None
+        mask_affine = mask_image.affine if mask_image is not None else None
+        mask_threshold: float | None
+        mask_threshold = (
+            cast(float, mask_config["threshold"])
+            if mask_config is not None and "threshold" in mask_config
+            else None
+        )
+        masker: nilearn.maskers.NiftiMasker | None
+        masker = (
+            nilearn.maskers.NiftiMasker(
+                nilearn.masking.compute_brain_mask(
+                    target_img=mask_image, threshold=mask_threshold
+                )
+            )
+            if mask_image is not None and mask_threshold is not None
+            else None
+        )
+        if masker is not None:
+            masker.fit()
+
+        return masker, mask_affine
 
     def get_whole_brain(
         self,
