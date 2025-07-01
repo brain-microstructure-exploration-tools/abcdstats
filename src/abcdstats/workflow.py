@@ -146,7 +146,7 @@ class Basic:
         individuals: list[dict[str, Any]] | None
         table, individuals = self.get_source_images_table_and_individuals()
 
-        metadata: pd.core.frame.Dataframe = self.get_source_images_metadata(
+        metadata: pd.core.frame.DataFrame = self.get_source_images_metadata(
             table, individuals
         )
 
@@ -205,10 +205,10 @@ class Basic:
     def get_source_images_metadata(
         self, table: pathlib.Path | None, individuals: list[dict[str, Any]] | None
     ) -> pd.core.frame.DataFrame:
-        metadata: pd.core.frame.Dataframe = pd.concat(
+        metadata: pd.core.frame.DataFrame = pd.concat(
             [
                 pd.read_csv(table) if table is not None else None,
-                pd.Dataframe(individuals) if individuals is not None else None,
+                pd.DataFrame(individuals) if individuals is not None else None,
             ],
             ignore_index=True,
         )
