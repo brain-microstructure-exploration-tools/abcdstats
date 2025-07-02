@@ -1917,6 +1917,7 @@ sample_configuration: ConfigurationType = {
             "filename": "/home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcd-data-exploration/prototype/segmentation_data_mrtrix.seg.nrrd",
             "background_index": 0,
         },
+        "background": {"filename": "/data2/ABCD/gor-images/gortemplate0.nii.gz"},
     },
     "confounding_variables": {
         "source_directory": "/data2/ABCD/abcd-5.0-tabular-data-extracted/core",
