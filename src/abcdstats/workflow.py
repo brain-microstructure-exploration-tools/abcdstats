@@ -10,6 +10,7 @@ import nilearn.masking  # type: ignore[import-not-found,import-untyped,unused-ig
 import numpy as np  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import numpy.typing as npt  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import pandas as pd  # type: ignore[import-not-found,import-untyped,unused-ignore]
+import SimpleItK as sitk  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import yaml  # type: ignore[import-not-found,import-untyped,unused-ignore]
 
 BasicValue: TypeAlias = str | int | float
@@ -87,13 +88,13 @@ class Basic:
         source_mask_masker, source_mask_affine_transform = self.get_source_mask()
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
-        whole_brain_voxels: npt.NDArray[np.float64]
-        whole_brain_affine_transform: npt.NDArray[np.float64]
+        whole_brain_voxels: nib.filebasedimages.FileBasedImage | None
+        whole_brain_affine_transform: npt.NDArray[np.float64] | None
         whole_brain_voxels, whole_brain_affine_transform = self.get_whole_brain()
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
-        brain_segmentation_voxels: npt.NDArray[np.float64 | np.int_]
-        brain_segmentation_affine_transform: npt.NDArray[np.float64]
+        brain_segmentation_voxels: npt.NDArray[np.float64 | np.int_] | None
+        brain_segmentation_affine_transform: npt.NDArray[np.float64] | None
         # Can be a labelmap (all-or-none segmentation) or a cloud that gives
         # probabilities for each segment.
         brain_segmentation_voxels, brain_segmentation_affine_transform = (
@@ -130,9 +131,8 @@ class Basic:
         # Process output to compute local maxima.
         # For each tested variable, for each local maximum, output coordinates and a
         # description
-        local_maxima_description: list[list[tuple[list[int], str]]] = (  # noqa: F841
-            self.compute_local_maxima(logp_max_t=logp_max_t)
-        )
+        local_maxima_description: list[list[tuple[list[int], str]]]
+        local_maxima_description = self.compute_local_maxima(logp_max_t=logp_max_t)  # noqa: F841
         # TODO: Invoke matplotlib
 
     def get_source_images(
@@ -146,13 +146,12 @@ class Basic:
         individuals: list[dict[str, Any]] | None
         table, individuals = self.get_source_images_table_and_individuals()
 
-        metadata: pd.core.frame.DataFrame = self.get_source_images_metadata(
-            table, individuals
-        )
+        metadata: pd.core.frame.DataFrame
+        metadata = self.get_source_images_metadata(table, individuals)
 
         voxels: list[nib.filebasedimages.FileBasedImage]
         affine_transform: npt.NDArray[np.float64]
-        voxels, affine_transform = self.get_voxels_and_affine(metadata)
+        voxels, affine_transform = self.get_source_images_voxels_and_affine(metadata)
 
         return voxels, affine_transform, metadata
 
@@ -160,46 +159,37 @@ class Basic:
         self,
     ) -> tuple[pathlib.Path | None, list[dict[str, Any]] | None]:
         mesg: str
-        targets: ConfigurationType
-        targets = cast(ConfigurationType, self.config["target_variables"])
-
-        # Find source filenames and their metadata
-        source_directory: pathlib.Path | None
-        source_directory = (
-            pathlib.Path(cast(str, targets["source_directory"]))
-            if "source_directory" in targets
-            else None
-        )
+        d_raw: ConfigurationType | ConfigurationValue | None
+        d_raw = self.config_get(["target_variables", "source_directory"])
+        directory: pathlib.Path | None
+        directory = pathlib.Path(cast(str, d_raw)) if d_raw is not None else None
+        t_raw: ConfigurationType | ConfigurationValue | None
+        t_raw = self.config_get(["target_variables", "table_of_filenames_and_metadata"])
         table: pathlib.Path | None
-        table = (
-            pathlib.Path(cast(str, targets["table_of_filenames_and_metadata"]))
-            if "table_of_filenames_and_metadata" in targets
-            else None
-        )
+        table = pathlib.Path(cast(str, t_raw)) if t_raw is not None else None
         # We will be modifying and returning `individuals` so make a deepcopy
+        i_raw: ConfigurationType | ConfigurationValue | None
+        i_raw = self.config_get(
+            ["target_variables", "individual_filenames_and_metadata"]
+        )
         individuals: list[dict[str, Any]] | None
         individuals = (
-            cast(
-                list[dict[str, Any]],
-                copy.deepcopy(targets["individual_filenames_and_metadata"]),
-            )
-            if "individual_filenames_and_metadata" in targets
+            cast(list[dict[str, Any]], copy.deepcopy(i_raw))
+            if i_raw is not None
             else None
         )
         if table is None and individuals is None:
             mesg = (
                 "Must supply at least one of `table_of_filenames_and_metadata`"
-                " and `individual_filenames_and_metadata`"
+                " or `individual_filenames_and_metadata`"
             )
             raise KeyError(mesg)
-        if source_directory is not None and table is not None:
-            table = source_directory / table
-        if source_directory is not None and individuals is not None:
+        if directory is not None and table is not None:
+            table = directory / table
+        if directory is not None and individuals is not None:
             for entry in individuals:
                 if "filename" in entry:
-                    entry["filename"] = str(
-                        source_directory / pathlib.Path(entry["filename"])
-                    )
+                    entry["filename"] = str(directory / pathlib.Path(entry["filename"]))
         return table, individuals
 
     def get_source_images_metadata(
@@ -214,7 +204,7 @@ class Basic:
         )
         return metadata
 
-    def get_voxels_and_affine(
+    def get_source_images_voxels_and_affine(
         self, metadata: pd.core.frame.DataFrame
     ) -> tuple[list[nib.filebasedimages.FileBasedImage], npt.NDArray[np.float64]]:
         mesg: str
@@ -223,10 +213,8 @@ class Basic:
         # Create nib.filebasedimages.FileBasedImage for each input file.  Note that the
         # order of the elements in `voxels` must match the order of the rows in
         # `metadata`.
-        voxels: list[nib.filebasedimages.FileBasedImage] = [
-            nib.load(path)  # type: ignore[attr-defined,unused-ignore]
-            for path in metadata["filename"].tolist()
-        ]
+        voxels: list[nib.filebasedimages.FileBasedImage]
+        voxels = [nib.load(path) for path in metadata["filename"].tolist()]
 
         # Check that shapes match
         all_shapes: list[tuple[int, ...]] = [img.shape for img in voxels]
@@ -245,70 +233,114 @@ class Basic:
                 " are the images registered?"
             )
             raise ValueError(mesg)
-        affine_transform: npt.NDArray[np.float64] = (
-            all_affines[0] if len(all_affines) > 0 else None
-        )
-        return voxels, affine_transform
+        affine: npt.NDArray[np.float64]
+        affine = all_affines[0] if len(all_affines) > 0 else None
+        return voxels, affine
 
     def get_source_mask(
         self,
     ) -> tuple[nilearn.maskers.NiftiMasker | None, npt.NDArray[np.float64] | None]:
-        targets: ConfigurationType
-        targets = cast(ConfigurationType, self.config["target_variables"])
-        source_directory: pathlib.Path | None
-        source_directory = (
-            pathlib.Path(cast(str, targets["source_directory"]))
-            if "source_directory" in targets
-            else None
-        )
-        mask_config: ConfigurationType | None
-        mask_config = (
-            cast(ConfigurationType, targets["mask"]) if "mask" in targets else None
-        )
-        mask_filename: pathlib.Path | None
-        mask_filename = (
-            pathlib.Path(cast(str, mask_config["filename"]))
-            if mask_config is not None and "filename" in mask_config
-            else None
-        )
-        if source_directory is not None and mask_filename is not None:
-            mask_filename = source_directory / mask_filename
-        mask_image: nib.filebasedimages.FileBasedImage | None
-        mask_image = nib.load(mask_filename) if mask_filename is not None else None
-        mask_affine: npt.NDArray[np.float64] | None
-        mask_affine = mask_image.affine if mask_image is not None else None
-        mask_threshold: float | None
-        mask_threshold = (
-            cast(float, mask_config["threshold"])
-            if mask_config is not None and "threshold" in mask_config
-            else None
-        )
+        d_raw: ConfigurationType | ConfigurationValue | None
+        d_raw = self.config_get(["target_variables", "source_directory"])
+        directory: pathlib.Path | None
+        directory = pathlib.Path(cast(str, d_raw)) if d_raw is not None else None
+        f_raw: ConfigurationType | ConfigurationValue | None
+        f_raw = self.config_get(["target_variables", "mask", "filename"])
+        filename: pathlib.Path | None
+        filename = pathlib.Path(cast(str, f_raw)) if f_raw is not None else None
+        if directory is not None and filename is not None:
+            filename = directory / filename
+        image: nib.filebasedimages.FileBasedImage | None
+        image = nib.load(filename) if filename is not None else None
+        affine: npt.NDArray[np.float64] | None
+        affine = image.affine if image is not None else None
+        t_raw: ConfigurationType | ConfigurationValue | None
+        t_raw = self.config_get(["target_variables", "mask", "threshold"])
+        threshold: float | None
+        threshold = cast(float, t_raw) if t_raw is not None else None
         masker: nilearn.maskers.NiftiMasker | None
         masker = (
             nilearn.maskers.NiftiMasker(
                 nilearn.masking.compute_brain_mask(
-                    target_img=mask_image, threshold=mask_threshold
+                    target_img=image, threshold=threshold
                 )
             )
-            if mask_image is not None and mask_threshold is not None
+            if image is not None and threshold is not None
             else None
         )
         if masker is not None:
             masker.fit()
 
-        return masker, mask_affine
+        return masker, affine
 
     def get_whole_brain(
         self,
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-        # TODO: Write me
-        return np.zeros((), dtype=np.float64), np.zeros((), dtype=np.float64)
+    ) -> tuple[
+        nib.filebasedimages.FileBasedImage | None, npt.NDArray[np.float64] | None
+    ]:
+        d_raw: ConfigurationType | ConfigurationValue | None
+        d_raw = self.config_get(["target_variables", "source_directory"])
+        directory: pathlib.Path | None
+        directory = pathlib.Path(cast(str, d_raw)) if d_raw is not None else None
+        f_raw: ConfigurationType | ConfigurationValue | None
+        f_raw = self.config_get(["target_variables", "background", "filename"])
+        filename: pathlib.Path | None
+        filename = pathlib.Path(cast(str, f_raw)) if f_raw is not None else None
+        if directory is not None and filename is not None:
+            filename = directory / filename
+
+        voxels: nib.filebasedimages.FileBasedImage | None
+        voxels = nib.load(filename) if filename is not None else None
+        affine: npt.NDArray[np.float64] | None
+        affine = voxels.affine if voxels is not None else None
+        return voxels, affine
 
     def get_brain_segmentation(
         self,
-    ) -> tuple[npt.NDArray[np.float64 | np.int_], npt.NDArray[np.float64]]:
-        # TODO: Write me
-        return np.zeros((), dtype=np.float64), np.zeros((), dtype=np.float64)
+    ) -> tuple[
+        npt.NDArray[np.float64 | np.int_] | None, npt.NDArray[np.float64] | None
+    ]:
+        d_raw: ConfigurationType | ConfigurationValue | None
+        d_raw = self.config_get(["target_variables", "source_directory"])
+        directory: pathlib.Path | None
+        directory = pathlib.Path(cast(str, d_raw)) if d_raw is not None else None
+        f_raw: ConfigurationType | ConfigurationValue | None
+        f_raw = self.config_get(["target_variables", "segmentation", "filename"])
+        filename: pathlib.Path | None
+        filename = pathlib.Path(cast(str, f_raw)) if f_raw is not None else None
+        if directory is not None and filename is not None:
+            filename = directory / filename
+
+        image: sitk.SimpleITK.Image | None
+        image = sitk.ReadImage(filename) if filename is not None else None
+        voxels: npt.NDArray[np.float64 | np.int_] | None
+        # Index order of ITK is reverse of what we are using
+        voxels = (
+            sitk.GetArrayFromImage(image).transpose(2, 1, 0)
+            if image is not None
+            else None
+        )
+
+        affine: npt.NDArray[np.float64] | None
+        if image is not None:
+            # Verified on a test case that this calculation gives the same as slicerio's ijkToLPS
+            origin: npt.NDArray[np.float64]
+            origin = np.array(image.GetOrigin(), dtype=np.float64)
+            spacing: npt.NDArray[np.float64]
+            spacing = np.array(image.GetSpacing(), dtype=np.float64)
+            direction: npt.NDArray[np.float64]
+            direction = np.array(image.GetDirection(), dtype=np.float64)
+            dim: int = image.GetDimension()
+            direction_matrix: npt.NDArray[np.float64] = direction.reshape((dim, dim))
+            affine = np.eye(dim + 1, dtype=np.float64)
+            affine[:dim, :dim] = direction_matrix * spacing  # scale columns
+            affine[:dim, dim] = origin
+            # Convert LPS to RAS by changing sign of first two rows
+            affine[:2] *= -1.0
+        else:
+            affine = None
+
+        return voxels, affine
 
     def get_tested_data(
         self,
@@ -355,3 +387,14 @@ class Basic:
     ) -> list[list[tuple[list[int], str]]]:
         # TODO: Write me
         return []
+
+    def config_get(
+        self, list_of_keys: list[str]
+    ) -> ConfigurationType | ConfigurationValue | None:
+        my_dict: ConfigurationType = self.config
+        key: str
+        for key in list_of_keys[:-1]:
+            my_dict = cast(ConfigurationType, my_dict.get(key, {}))
+        my_value: ConfigurationType | ConfigurationValue | None
+        my_value = my_dict.get(list_of_keys[-1])
+        return my_value

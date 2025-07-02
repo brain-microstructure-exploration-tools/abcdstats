@@ -35,6 +35,7 @@ dependencies = [
   "numpy",
   "pandas",
   "PyYAML",
+  "SimpleITK",
   "typing_extensions",
 ]
 
