@@ -1,21 +1,28 @@
 from __future__ import annotations
 
+import collections
 import copy
+import math
 import pathlib
 from typing import Any, TypeAlias, Union, cast
 
 import nibabel as nib  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import nilearn.maskers  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import nilearn.masking  # type: ignore[import-not-found,import-untyped,unused-ignore]
+import nrrd  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import numpy as np  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import numpy.typing as npt  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import pandas as pd  # type: ignore[import-not-found,import-untyped,unused-ignore]
-import SimpleItK as sitk  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import yaml  # type: ignore[import-not-found,import-untyped,unused-ignore]
 
 BasicValue: TypeAlias = str | int | float
 ConfigurationValue: TypeAlias = BasicValue | list[Any]
 ConfigurationType: TypeAlias = dict[str, Union[ConfigurationValue, "ConfigurationType"]]
+
+
+# TODO: Check that there are no extra fields in our YAML file
+
+# TODO: Break up long functions if there are meaningful subfunctions
 
 
 class Basic:
@@ -33,18 +40,21 @@ class Basic:
         # self.configure(yaml_file).  The user can go back to these with
         # self.configure(None).
         variable_default: ConfigurationType = {
-            "convert": [],
+            "convert": {},
             "handle_missing": "invalidate",
             "is_missing": ["", np.nan],
+            "minimum_perplexity": 1.0,
         }
         self.config_default: ConfigurationType = {
-            "tested_variables": {"variable_default": variable_default},
+            "tested_variables": {
+                "variable_default": variable_default,
+            },
             "target_variables": {
+                # TODO: Do we still use filename_pattern?
                 "filename_pattern": r"^.*\.nii(\.gz)?$",
                 "segmentation": {"background_index": 0},
             },
             "confounding_variables": {
-                "minimum_perplexity": 1.0,
                 "variable_default": {**variable_default, "longitudinal": ["intercept"]},
             },
         }
@@ -95,11 +105,14 @@ class Basic:
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
         brain_segmentation_voxels: npt.NDArray[np.float64 | np.int_] | None
         brain_segmentation_affine_transform: npt.NDArray[np.float64] | None
+        brain_segmentation_header: collections.OrderedDict[str, Any] | None
         # Can be a labelmap (all-or-none segmentation) or a cloud that gives
         # probabilities for each segment.
-        brain_segmentation_voxels, brain_segmentation_affine_transform = (
-            self.get_brain_segmentation()
-        )
+        (
+            brain_segmentation_voxels,
+            brain_segmentation_affine_transform,
+            brain_segmentation_header,
+        ) = self.get_brain_segmentation()
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
         tested_data_frame: pd.core.frame.DataFrame
@@ -298,7 +311,9 @@ class Basic:
     def get_brain_segmentation(
         self,
     ) -> tuple[
-        npt.NDArray[np.float64 | np.int_] | None, npt.NDArray[np.float64] | None
+        npt.NDArray[np.float64 | np.int_] | None,
+        npt.NDArray[np.float64] | None,
+        collections.OrderedDict[str, Any] | None,
     ]:
         d_raw: ConfigurationType | ConfigurationValue | None
         d_raw = self.config_get(["target_variables", "source_directory"])
@@ -311,48 +326,269 @@ class Basic:
         if directory is not None and filename is not None:
             filename = directory / filename
 
-        image: sitk.SimpleITK.Image | None
-        image = sitk.ReadImage(filename) if filename is not None else None
-        voxels: npt.NDArray[np.float64 | np.int_] | None
-        # Index order of ITK is reverse of what we are using
-        voxels = (
-            sitk.GetArrayFromImage(image).transpose(2, 1, 0)
-            if image is not None
-            else None
-        )
+        voxels: npt.NDArray[np.float64 | np.int_] | None = None
+        header: collections.OrderedDict[str, Any] | None = None
+        affine: npt.NDArray[np.float64] | None = None
+        if filename is not None:
+            voxels, header = nrrd.read(filename)  # shape = (71, 140, 140, 140)
+            header = cast(collections.OrderedDict[str, Any], header)
+            affine = np.eye(4, dtype=np.float64)
+            affine[:3, :3] = header["space directions"][-3:, -3:]
+            affine[:3, 3] = header["space origin"][-3:]
+            if header["space"] == "left-posterior-superior":
+                # Convert to right-anterior-superior
+                affine[:2] *= -1.0
 
-        affine: npt.NDArray[np.float64] | None
-        if image is not None:
-            # Verified on a test case that this calculation gives the same as slicerio's ijkToLPS
-            origin: npt.NDArray[np.float64]
-            origin = np.array(image.GetOrigin(), dtype=np.float64)
-            spacing: npt.NDArray[np.float64]
-            spacing = np.array(image.GetSpacing(), dtype=np.float64)
-            direction: npt.NDArray[np.float64]
-            direction = np.array(image.GetDirection(), dtype=np.float64)
-            dim: int = image.GetDimension()
-            direction_matrix: npt.NDArray[np.float64] = direction.reshape((dim, dim))
-            affine = np.eye(dim + 1, dtype=np.float64)
-            affine[:dim, :dim] = direction_matrix * spacing  # scale columns
-            affine[:dim, dim] = origin
-            # Convert LPS to RAS by changing sign of first two rows
-            affine[:2] *= -1.0
-        else:
-            affine = None
-
-        return voxels, affine
+        return voxels, affine, header
 
     def get_tested_data(
         self,
     ) -> tuple[pd.core.frame.DataFrame, npt.NDArray[np.float64]]:
-        # TODO: Write me
-        return pd.core.frame.DataFrame(), np.zeros((), dtype=np.float64)
+        mesg: str
+
+        d_raw: ConfigurationType | ConfigurationValue | None
+        d_raw = self.config_get(["tested_variables", "source_directory"])
+        directory: pathlib.Path | None
+        directory = pathlib.Path(cast(str, d_raw)) if d_raw is not None else None
+
+        z_raw: ConfigurationType | ConfigurationValue | None
+        z_raw = self.config_get(["tested_variables", "variable_default"])
+        variable_default: dict[str, Any]
+        variable_default = cast(dict[str, Any], z_raw if z_raw is not None else {})
+
+        v_raw: ConfigurationType | ConfigurationValue | None
+        v_raw = self.config_get(["tested_variables", "variable"])
+        if v_raw is None or not cast(dict[str, Any], v_raw):
+            mesg = "Must supply at least one `variable` in `tested_variables`."
+            raise KeyError(mesg)
+        variables: dict[str, dict[str, Any]]
+        variables = copy.deepcopy(cast(dict[str, dict[str, Any]], v_raw))
+
+        variables, df_var = self.fetch_variables(directory, variable_default, variables)
+
+        # TODO: Convert df_var into a numpy array
+        array: npt.NDArray[np.float64]
+        array = np.zeros((), dtype=np.float64)
+
+        return df_var, array
 
     def get_confounding_data(
         self,
     ) -> tuple[pd.core.frame.DataFrame, npt.NDArray[np.float64]]:
-        # TODO: Write me
-        return pd.core.frame.DataFrame(), np.zeros((), dtype=np.float64)
+        mesg: str
+
+        d_raw: ConfigurationType | ConfigurationValue | None
+        d_raw = self.config_get(["confounding_variables", "source_directory"])
+        directory: pathlib.Path | None
+        directory = pathlib.Path(cast(str, d_raw)) if d_raw is not None else None
+
+        z_raw: ConfigurationType | ConfigurationValue | None
+        z_raw = self.config_get(["confounding_variables", "variable_default"])
+        variable_default: dict[str, Any]
+        variable_default = cast(dict[str, Any], z_raw if z_raw is not None else {})
+
+        v_raw: ConfigurationType | ConfigurationValue | None
+        v_raw = self.config_get(["confounding_variables", "variable"])
+        if v_raw is None or not cast(dict[str, Any], v_raw):
+            mesg = "Must supply at least one `variable` in `confounding_variables`."
+            raise KeyError(mesg)
+        variables: dict[str, dict[str, Any]]
+        variables = copy.deepcopy(cast(dict[str, dict[str, Any]], v_raw))
+
+        variables, df_var = self.fetch_variables(directory, variable_default, variables)
+
+        # TODO: Handle longitudinal markings
+
+        # TODO: Convert df_var into a numpy array
+        array: npt.NDArray[np.float64]
+        array = np.zeros((), dtype=np.float64)
+
+        return df_var, array
+
+    def fetch_variables(
+        self,
+        directory: pathlib.Path | None,
+        variable_default: dict[str, Any],
+        variables: dict[str, dict[str, Any]],
+    ) -> tuple[dict[str, dict[str, Any]], pd.core.frame.DataFrame]:
+        # Use defaults unless a variable-specific value is supplied
+        variables = {
+            variable: variable_default | var_config
+            for variable, var_config in variables.items()
+        }
+
+        # Check that each var_config has required fields
+        mesg = "\n".join(
+            [
+                f"`{field}` is missing for tested variable `{variable}`."
+                for field in [
+                    "filename",
+                    "convert",
+                    "handle_missing",
+                    "is_missing",
+                    "type",
+                    "minimum_perplexity",
+                ]
+                for variable, var_config in variables.items()
+                if field not in var_config
+            ]
+        )
+        if mesg:
+            raise KeyError(mesg)
+
+        # Compute full paths
+        if directory is not None:
+            variables = {
+                variable: var_config
+                | {"filename": str(directory / pathlib.Path(var_config["filename"]))}
+                for variable, var_config in variables.items()
+            }
+
+        # The `variable` is the internal_name unless the `var_config` already has it
+        variables = {
+            variable: {"internal_name": variable} | var_config
+            for variable, var_config in variables.items()
+        }
+
+        # Load files into pandas DataFrames and select the variables and join keys.
+        dict_df_var: dict[str, pd.core.frame.DataFrame]
+        dict_df_var = {
+            filename: pd.read_csv(filename)[
+                *self.join_keys,
+                *{
+                    var_config["internal_name"]
+                    for var_config in variables.values()
+                    if var_config["filename"] == filename
+                },
+            ]
+            for filename in {
+                var_config["filename"] for var_config in variables.values()
+            }
+        }
+
+        # Switch to user-specified names.  Do this before merging tables in case of
+        # internal_name collisions.
+        dict_df_var = {
+            filename: df_var.rename(
+                columns={
+                    var_config["internal_name"]: variable
+                    for variable, var_config in variables.items()
+                    if var_config["filename"] == filename
+                    and var_config["internal_name"] != variable
+                }
+            )
+            for filename, df_var in dict_df_var.items()
+        }
+
+        # Merge tables into one
+        table_names: list[str] = list(dict_df_var.keys())
+        df_var: pd.core.frame.DataFrame
+        df_var = dict_df_var[table_names[0]]
+        for t in table_names[1:]:
+            df_var = df_var.merge(
+                dict_df_var[t], on=self.join_keys, how="inner", validate="one_to_one"
+            )
+        del dict_df_var
+
+        # Apply convert, handle_missing and is_missing
+        for variable, var_config in variables.items():
+            convert: dict[str, Any]
+            convert = var_config["convert"]
+            handle_missing: str
+            handle_missing = var_config["handle_missing"]
+            is_missing: list[Any]
+            is_missing = var_config["is_missing"]
+            var_type: str
+            var_type = var_config["type"]
+            minimum_perplexity: float
+            minimum_perplexity = var_config["minimum_perplexity"]
+
+            for src, dst in convert.items():
+                df_var[variable] = df_var[variable].replace(src, dst)
+
+            if handle_missing != "by_value" and len(is_missing) > 1:
+                # Prior to handling the separate cases, make all missing values equal to
+                # is_missing[0]
+                for val in is_missing[1:]:
+                    df_var[variable] = df_var[variable].replace(val, is_missing[0])
+            # Process each handle_missing case
+            if handle_missing == "invalidate" and len(is_missing) > 0:
+                # Remove rows for missing values
+                df_var = df_var[df_var[variable] != is_missing[0]]
+            if handle_missing == "together" and len(is_missing) > 0:
+                if var_type == "unordered":
+                    # Nothing to do
+                    pass
+                if var_type == "ordered":
+                    # We will interpret missing as 0, but add a one-hot column so that
+                    # it can effectively be any constant.  In particular, it will not be
+                    # confounded with actual values of 0.
+                    new_missing_name: str = variable + "_missing"
+                    if new_missing_name in df_var.columns:
+                        mesg = f"Failed to get unique column name for {new_missing_name!r}."
+                        raise ValueError(mesg)
+                    df_var[new_missing_name] = (
+                        df_var[variable] == is_missing[0]
+                    ).astype(int)
+                    df_var.loc[df_var[variable] == is_missing[0], variable] = 0
+            if handle_missing == "by_value":
+                if var_type == "unordered":
+                    # There is nothing more to do.
+                    pass
+                if var_type == "ordered":
+                    mesg = (
+                        "We do not currently handle the case that"
+                        ' handle_missing == "by_value" and var_type == "ordered"'
+                    )
+                    raise ValueError(mesg)
+            if handle_missing == "separately":
+                # We want to use unused distinct values for each type of "missing".  We
+                # add unique values so the pd.get_dummies call creates a one-hot column
+                # for each missing value.
+                unused_numeric_value: int = 1 + max(
+                    [int(x) for x in df_var[variable] if isinstance(x, int | float)]
+                    + [0]
+                )
+                number_needed_values: int = (df_var[variable] == is_missing[0]).sum()
+                if var_type == "unordered":
+                    df_var.loc[df_var[variable] == is_missing[0], variable] = range(
+                        unused_numeric_value,
+                        unused_numeric_value + number_needed_values,
+                    )
+                if var_type == "ordered":
+                    mesg = (
+                        "We do not currently handle the case that"
+                        ' handle_missing == "separately" and var_type == "ordered"'
+                    )
+                    raise ValueError(mesg)
+
+            # Convert categorical data to a multicolumn one-hot representation
+            if var_type == "unordered":
+                df_var = pd.get_dummies(
+                    df_var, dummy_na=True, columns=[variable], drop_first=False
+                )
+
+            # Check perplexity
+            df_var = self.enforce_perplexity(df_var, variable, minimum_perplexity)
+        return variables, df_var
+
+    def enforce_perplexity(
+        self, df_var: pd.core.frame.DataFrame, variable: str, minimum_perplexity: float
+    ) -> pd.core.frame.DataFrame:
+        counts: dict[Any, int]
+        counts = dict(df_var[variable].value_counts(dropna=False).astype(int))
+        total: int
+        total = sum(counts.values())
+        perplexity: float
+        perplexity = math.prod(
+            (total / count) ** (count / total) for count in counts.values() if count > 0
+        )
+        if perplexity < minimum_perplexity and not math.isclose(
+            perplexity, minimum_perplexity
+        ):
+            df_var = df_var.drop(variable, axis=1)
+
+        return df_var
 
     def compute_significant_voxels(
         self,
@@ -369,7 +605,8 @@ class Basic:
           confounding_vars.shape == (number_images, number_confounding_vars)
 
         Need this later
-          number_values: int = sum([math.prod(img.shape) for img in source_images_voxels])
+          number_values: int
+          number_values = sum([math.prod(img.shape) for img in source_images_voxels])
           max_values_per_iteration: int = 1_000_000_000
           number_iterations = math.ceil(number_values / max_values_per_iteration)
         """
