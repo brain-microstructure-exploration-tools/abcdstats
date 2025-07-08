@@ -34,8 +34,8 @@ dependencies = [
   "nilearn",
   "numpy",
   "pandas",
+  "pynrrd",
   "PyYAML",
-  "SimpleITK",
   "typing_extensions",
 ]
 

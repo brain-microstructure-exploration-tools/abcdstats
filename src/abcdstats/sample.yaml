@@ -1284,10 +1284,10 @@ target_variables:
     filename: /data2/ABCD/gor-images/gortemplate0.nii.gz
 confounding_variables:
   source_directory: /data2/ABCD/abcd-5.0-tabular-data-extracted/core
-  minimum_perplexity: 1.1
   variable_default:
     handle_missing: invalidate
     type: unordered
+    minimum_perplexity: 1.1
     longitudinal:
       - intercept
   variable:

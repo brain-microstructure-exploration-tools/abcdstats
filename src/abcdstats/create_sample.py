@@ -1921,10 +1921,10 @@ sample_configuration: ConfigurationType = {
     },
     "confounding_variables": {
         "source_directory": "/data2/ABCD/abcd-5.0-tabular-data-extracted/core",
-        "minimum_perplexity": 1.1,
         "variable_default": {
             "handle_missing": "invalidate",
             "type": "unordered",
+            "minimum_perplexity": 1.1,
             "longitudinal": ["intercept"],
         },
         "variable": {
@@ -1958,3 +1958,5 @@ sample_configuration: ConfigurationType = {
 filename: str = "sample.yaml"
 with pathlib.Path(filename).open("w", encoding="utf-8") as file:
     yaml.dump(sample_configuration, file, default_flow_style=False, sort_keys=False)
+
+print(f"Don't forget to run `pre-commit run -a` for {filename}")  # noqa: T201
