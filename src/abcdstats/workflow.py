@@ -85,59 +85,60 @@ class Basic:
 
     def run(self) -> None:
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
-        source_images_voxels: list[nib.filebasedimages.FileBasedImage]
-        source_images_affine_transform: npt.NDArray[np.float64]
-        source_images_metadata: pd.core.frame.DataFrame
-        source_images_voxels, source_images_affine_transform, source_images_metadata = (
+        images_voxels: list[nib.filebasedimages.FileBasedImage]
+        images_affine_transform: npt.NDArray[np.float64]
+        images_metadata: pd.core.frame.DataFrame
+        images_voxels, images_affine_transform, images_metadata = (
             self.get_source_images()
         )
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
-        source_mask_masker: nilearn.maskers.NiftiMasker | None
-        source_mask_affine_transform: npt.NDArray[np.float64] | None
-        source_mask_masker, source_mask_affine_transform = self.get_source_mask()
+        tested_frame: pd.core.frame.DataFrame
+        # Assembly can include conversion to one-hot.
+        tested_frame = self.get_tested_data()
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
-        whole_brain_voxels: nib.filebasedimages.FileBasedImage | None
-        whole_brain_affine_transform: npt.NDArray[np.float64] | None
-        whole_brain_voxels, whole_brain_affine_transform = self.get_whole_brain()
+        confounding_frame: pd.core.frame.DataFrame
+        # Assembly can include conversion to one-hot, as well as use as intercept or
+        # slope random effects.
+        confounding_frame = self.get_confounding_data()
+
+        tested_array: npt.NDArray[np.float64]
+        confounding_array: npt.NDArray[np.float64]
+        tested_array, confounding_array = self.make_arrays(
+            tested_frame, confounding_frame
+        )
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
-        brain_segmentation_voxels: npt.NDArray[np.float64 | np.int_] | None
-        brain_segmentation_affine_transform: npt.NDArray[np.float64] | None
-        brain_segmentation_header: collections.OrderedDict[str, Any] | None
+        mask_masker: nilearn.maskers.NiftiMasker | None
+        mask_affine_transform: npt.NDArray[np.float64] | None
+        mask_masker, mask_affine_transform = self.get_source_mask()
+
+        # Fetch, check, assemble, and clean the data as directed by the YAML file.
+        background_voxels: nib.filebasedimages.FileBasedImage | None
+        background_affine_transform: npt.NDArray[np.float64] | None
+        background_voxels, background_affine_transform = self.get_whole_brain()
+
+        # Fetch, check, assemble, and clean the data as directed by the YAML file.
+        segmentation_voxels: npt.NDArray[np.float64 | np.int_] | None
+        segmentation_affine_transform: npt.NDArray[np.float64] | None
+        segmentation_header: collections.OrderedDict[str, Any] | None
         # Can be a labelmap (all-or-none segmentation) or a cloud that gives
         # probabilities for each segment.
-        (
-            brain_segmentation_voxels,
-            brain_segmentation_affine_transform,
-            brain_segmentation_header,
-        ) = self.get_brain_segmentation()
-
-        # Fetch, check, assemble, and clean the data as directed by the YAML file.
-        tested_data_frame: pd.core.frame.DataFrame
-        tested_data_array: npt.NDArray[np.float64]
-        # Assembly can include conversion to one-hot, as well as use as intercept or
-        # slope random effects.
-        tested_data_frame, tested_data_array = self.get_tested_data()
-
-        # Fetch, check, assemble, and clean the data as directed by the YAML file.
-        confounding_data_frame: pd.core.frame.DataFrame
-        confounding_data_array: npt.NDArray[np.float64]
-        # Assembly can include conversion to one-hot, as well as use as intercept or
-        # slope random effects.
-        confounding_data_frame, confounding_data_array = self.get_confounding_data()
+        segmentation_voxels, segmentation_affine_transform, segmentation_header = (
+            self.get_brain_segmentation()
+        )
 
         # Process inputs to compute statistically significant voxels.
-        # TODO: Don't forget to use the source_mask_voxels to mask target_vars.  (TODO:
+        # TODO: Don't forget to use the mask_voxels to mask target_vars.  (TODO:
         # Or use masker and threshold?)
         permuted_ols: dict[str, npt.NDArray[np.float64]]
         glm_ols: npt.NDArray[np.float64]
         permuted_ols, glm_ols = self.compute_significant_voxels(
-            tested_vars=tested_data_array,
-            target_vars=source_images_voxels,
-            confounding_vars=confounding_data_array,
-            masker=source_mask_masker,
+            tested_vars=tested_array,
+            target_vars=images_voxels,
+            confounding_vars=confounding_array,
+            masker=mask_masker,
         )
         logp_max_t: npt.NDArray[np.float64] = permuted_ols["logp_max_t"]
 
@@ -250,100 +251,7 @@ class Basic:
         affine = all_affines[0] if len(all_affines) > 0 else None
         return voxels, affine
 
-    def get_source_mask(
-        self,
-    ) -> tuple[nilearn.maskers.NiftiMasker | None, npt.NDArray[np.float64] | None]:
-        d_raw: ConfigurationType | ConfigurationValue | None
-        d_raw = self.config_get(["target_variables", "source_directory"])
-        directory: pathlib.Path | None
-        directory = pathlib.Path(cast(str, d_raw)) if d_raw is not None else None
-        f_raw: ConfigurationType | ConfigurationValue | None
-        f_raw = self.config_get(["target_variables", "mask", "filename"])
-        filename: pathlib.Path | None
-        filename = pathlib.Path(cast(str, f_raw)) if f_raw is not None else None
-        if directory is not None and filename is not None:
-            filename = directory / filename
-        image: nib.filebasedimages.FileBasedImage | None
-        image = nib.load(filename) if filename is not None else None
-        affine: npt.NDArray[np.float64] | None
-        affine = image.affine if image is not None else None
-        t_raw: ConfigurationType | ConfigurationValue | None
-        t_raw = self.config_get(["target_variables", "mask", "threshold"])
-        threshold: float | None
-        threshold = cast(float, t_raw) if t_raw is not None else None
-        masker: nilearn.maskers.NiftiMasker | None
-        masker = (
-            nilearn.maskers.NiftiMasker(
-                nilearn.masking.compute_brain_mask(
-                    target_img=image, threshold=threshold
-                )
-            )
-            if image is not None and threshold is not None
-            else None
-        )
-        if masker is not None:
-            masker.fit()
-
-        return masker, affine
-
-    def get_whole_brain(
-        self,
-    ) -> tuple[
-        nib.filebasedimages.FileBasedImage | None, npt.NDArray[np.float64] | None
-    ]:
-        d_raw: ConfigurationType | ConfigurationValue | None
-        d_raw = self.config_get(["target_variables", "source_directory"])
-        directory: pathlib.Path | None
-        directory = pathlib.Path(cast(str, d_raw)) if d_raw is not None else None
-        f_raw: ConfigurationType | ConfigurationValue | None
-        f_raw = self.config_get(["target_variables", "background", "filename"])
-        filename: pathlib.Path | None
-        filename = pathlib.Path(cast(str, f_raw)) if f_raw is not None else None
-        if directory is not None and filename is not None:
-            filename = directory / filename
-
-        voxels: nib.filebasedimages.FileBasedImage | None
-        voxels = nib.load(filename) if filename is not None else None
-        affine: npt.NDArray[np.float64] | None
-        affine = voxels.affine if voxels is not None else None
-        return voxels, affine
-
-    def get_brain_segmentation(
-        self,
-    ) -> tuple[
-        npt.NDArray[np.float64 | np.int_] | None,
-        npt.NDArray[np.float64] | None,
-        collections.OrderedDict[str, Any] | None,
-    ]:
-        d_raw: ConfigurationType | ConfigurationValue | None
-        d_raw = self.config_get(["target_variables", "source_directory"])
-        directory: pathlib.Path | None
-        directory = pathlib.Path(cast(str, d_raw)) if d_raw is not None else None
-        f_raw: ConfigurationType | ConfigurationValue | None
-        f_raw = self.config_get(["target_variables", "segmentation", "filename"])
-        filename: pathlib.Path | None
-        filename = pathlib.Path(cast(str, f_raw)) if f_raw is not None else None
-        if directory is not None and filename is not None:
-            filename = directory / filename
-
-        voxels: npt.NDArray[np.float64 | np.int_] | None = None
-        header: collections.OrderedDict[str, Any] | None = None
-        affine: npt.NDArray[np.float64] | None = None
-        if filename is not None:
-            voxels, header = nrrd.read(filename)  # shape = (71, 140, 140, 140)
-            header = cast(collections.OrderedDict[str, Any], header)
-            affine = np.eye(4, dtype=np.float64)
-            affine[:3, :3] = header["space directions"][-3:, -3:]
-            affine[:3, 3] = header["space origin"][-3:]
-            if header["space"] == "left-posterior-superior":
-                # Convert to right-anterior-superior
-                affine[:2] *= -1.0
-
-        return voxels, affine, header
-
-    def get_tested_data(
-        self,
-    ) -> tuple[pd.core.frame.DataFrame, npt.NDArray[np.float64]]:
+    def get_tested_data(self) -> pd.core.frame.DataFrame:
         mesg: str
 
         d_raw: ConfigurationType | ConfigurationValue | None
@@ -366,15 +274,11 @@ class Basic:
 
         variables, df_var = self.fetch_variables(directory, variable_default, variables)
 
-        # TODO: Convert df_var into a numpy array
-        array: npt.NDArray[np.float64]
-        array = np.zeros((), dtype=np.float64)
-
-        return df_var, array
+        return df_var
 
     def get_confounding_data(
         self,
-    ) -> tuple[pd.core.frame.DataFrame, npt.NDArray[np.float64]]:
+    ) -> pd.core.frame.DataFrame:
         mesg: str
 
         d_raw: ConfigurationType | ConfigurationValue | None
@@ -399,11 +303,7 @@ class Basic:
 
         # TODO: Handle longitudinal markings
 
-        # TODO: Convert df_var into a numpy array
-        array: npt.NDArray[np.float64]
-        array = np.zeros((), dtype=np.float64)
-
-        return df_var, array
+        return df_var
 
     def fetch_variables(
         self,
@@ -589,6 +489,125 @@ class Basic:
             df_var = df_var.drop(variable, axis=1)
 
         return df_var
+
+    # TODO: Do we need to join/sort source_images_data similarly?
+    def make_arrays(
+        self,
+        tested_frame: pd.core.frame.DataFrame,
+        confounding_frame: pd.core.frame.DataFrame,
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        all_information: pd.core.frame.DataFrame
+        all_information = tested_frame.merge(
+            confounding_frame,
+            on=self.join_keys,
+            how="inner",
+            validate="one_to_one",
+        )
+        # TODO: We should dropna sooner, e.g., before the perplexity test
+        all_information = all_information.dropna()
+
+        tested_keys: set[str]
+        tested_keys = set(tested_frame.columns) - set(self.join_keys)
+        tested_array: npt.NDArray[np.float64]
+        tested_array = all_information[tested_keys].to_numpy(dtype=np.float64)
+
+        confounding_keys: set[str]
+        confounding_keys = set(confounding_frame.columns) - set(self.join_keys)
+        confounding_array: npt.NDArray[np.float64]
+        confounding_array = all_information[confounding_keys].to_numpy(dtype=np.float64)
+
+        return tested_array, confounding_array
+
+    def get_source_mask(
+        self,
+    ) -> tuple[nilearn.maskers.NiftiMasker | None, npt.NDArray[np.float64] | None]:
+        d_raw: ConfigurationType | ConfigurationValue | None
+        d_raw = self.config_get(["target_variables", "source_directory"])
+        directory: pathlib.Path | None
+        directory = pathlib.Path(cast(str, d_raw)) if d_raw is not None else None
+        f_raw: ConfigurationType | ConfigurationValue | None
+        f_raw = self.config_get(["target_variables", "mask", "filename"])
+        filename: pathlib.Path | None
+        filename = pathlib.Path(cast(str, f_raw)) if f_raw is not None else None
+        if directory is not None and filename is not None:
+            filename = directory / filename
+        image: nib.filebasedimages.FileBasedImage | None
+        image = nib.load(filename) if filename is not None else None
+        affine: npt.NDArray[np.float64] | None
+        affine = image.affine if image is not None else None
+        t_raw: ConfigurationType | ConfigurationValue | None
+        t_raw = self.config_get(["target_variables", "mask", "threshold"])
+        threshold: float | None
+        threshold = cast(float, t_raw) if t_raw is not None else None
+        masker: nilearn.maskers.NiftiMasker | None
+        masker = (
+            nilearn.maskers.NiftiMasker(
+                nilearn.masking.compute_brain_mask(
+                    target_img=image, threshold=threshold
+                )
+            )
+            if image is not None and threshold is not None
+            else None
+        )
+        if masker is not None:
+            masker.fit()
+
+        return masker, affine
+
+    def get_whole_brain(
+        self,
+    ) -> tuple[
+        nib.filebasedimages.FileBasedImage | None, npt.NDArray[np.float64] | None
+    ]:
+        d_raw: ConfigurationType | ConfigurationValue | None
+        d_raw = self.config_get(["target_variables", "source_directory"])
+        directory: pathlib.Path | None
+        directory = pathlib.Path(cast(str, d_raw)) if d_raw is not None else None
+        f_raw: ConfigurationType | ConfigurationValue | None
+        f_raw = self.config_get(["target_variables", "background", "filename"])
+        filename: pathlib.Path | None
+        filename = pathlib.Path(cast(str, f_raw)) if f_raw is not None else None
+        if directory is not None and filename is not None:
+            filename = directory / filename
+
+        voxels: nib.filebasedimages.FileBasedImage | None
+        voxels = nib.load(filename) if filename is not None else None
+        affine: npt.NDArray[np.float64] | None
+        affine = voxels.affine if voxels is not None else None
+        return voxels, affine
+
+    def get_brain_segmentation(
+        self,
+    ) -> tuple[
+        npt.NDArray[np.float64 | np.int_] | None,
+        npt.NDArray[np.float64] | None,
+        collections.OrderedDict[str, Any] | None,
+    ]:
+        d_raw: ConfigurationType | ConfigurationValue | None
+        d_raw = self.config_get(["target_variables", "source_directory"])
+        directory: pathlib.Path | None
+        directory = pathlib.Path(cast(str, d_raw)) if d_raw is not None else None
+        f_raw: ConfigurationType | ConfigurationValue | None
+        f_raw = self.config_get(["target_variables", "segmentation", "filename"])
+        filename: pathlib.Path | None
+        filename = pathlib.Path(cast(str, f_raw)) if f_raw is not None else None
+        if directory is not None and filename is not None:
+            filename = directory / filename
+
+        voxels: npt.NDArray[np.float64 | np.int_] | None = None
+        header: collections.OrderedDict[str, Any] | None = None
+        affine: npt.NDArray[np.float64] | None = None
+        if filename is not None:
+            voxels, header = nrrd.read(filename)  # shape = (71, 140, 140, 140)
+            header = cast(collections.OrderedDict[str, Any], header)
+            affine = np.eye(4, dtype=np.float64)
+            affine[:3, :3] = header["space directions"][-3:, -3:]
+            affine[:3, 3] = header["space origin"][-3:]
+            if header["space"] == "left-posterior-superior":
+                # Convert to right-anterior-superior
+                affine[:2] *= -1.0
+
+        return voxels, affine, header
 
     def compute_significant_voxels(
         self,
