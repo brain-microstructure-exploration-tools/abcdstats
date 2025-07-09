@@ -85,17 +85,13 @@ class Basic:
 
     def run(self) -> None:
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
-        images_voxels: list[nib.filebasedimages.FileBasedImage]
-        images_affine_transform: npt.NDArray[np.float64]
-        images_metadata: pd.core.frame.DataFrame
-        images_voxels, images_affine_transform, images_metadata = (
-            self.get_source_images()
-        )
-
-        # Fetch, check, assemble, and clean the data as directed by the YAML file.
         tested_frame: pd.core.frame.DataFrame
         # Assembly can include conversion to one-hot.
         tested_frame = self.get_tested_data()
+
+        # Fetch, check, assemble, and clean the data as directed by the YAML file.
+        target_frame: pd.core.frame.DataFrame
+        target_frame = self.get_target_data()
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
         confounding_frame: pd.core.frame.DataFrame
@@ -104,10 +100,18 @@ class Basic:
         confounding_frame = self.get_confounding_data()
 
         tested_array: npt.NDArray[np.float64]
+        target_images: list[nib.filebasedimages.FileBasedImage]
+        target_affine: npt.NDArray[np.float64]
         confounding_array: npt.NDArray[np.float64]
-        tested_array, confounding_array = self.make_arrays(
-            tested_frame, confounding_frame
-        )
+        (
+            tested_frame,
+            target_frame,
+            confounding_frame,
+            tested_array,
+            target_images,
+            target_affine,
+            confounding_array,
+        ) = self.make_arrays(tested_frame, target_frame, confounding_frame)
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
         mask_masker: nilearn.maskers.NiftiMasker | None
@@ -136,7 +140,7 @@ class Basic:
         glm_ols: npt.NDArray[np.float64]
         permuted_ols, glm_ols = self.compute_significant_voxels(
             tested_vars=tested_array,
-            target_vars=images_voxels,
+            target_vars=target_images,
             confounding_vars=confounding_array,
             masker=mask_masker,
         )
@@ -149,27 +153,17 @@ class Basic:
         local_maxima_description = self.compute_local_maxima(logp_max_t=logp_max_t)  # noqa: F841
         # TODO: Invoke matplotlib
 
-    def get_source_images(
-        self,
-    ) -> tuple[
-        list[nib.filebasedimages.FileBasedImage],
-        npt.NDArray[np.float64],
-        pd.core.frame.DataFrame,
-    ]:
+    def get_target_data(self) -> pd.core.frame.DataFrame:
         table: pathlib.Path | None
         individuals: list[dict[str, Any]] | None
-        table, individuals = self.get_source_images_table_and_individuals()
+        table, individuals = self.get_target_data_table_and_individuals()
 
-        metadata: pd.core.frame.DataFrame
-        metadata = self.get_source_images_metadata(table, individuals)
+        target_frame: pd.core.frame.DataFrame
+        target_frame = self.get_target_data_frame(table, individuals)
 
-        voxels: list[nib.filebasedimages.FileBasedImage]
-        affine_transform: npt.NDArray[np.float64]
-        voxels, affine_transform = self.get_source_images_voxels_and_affine(metadata)
+        return target_frame
 
-        return voxels, affine_transform, metadata
-
-    def get_source_images_table_and_individuals(
+    def get_target_data_table_and_individuals(
         self,
     ) -> tuple[pathlib.Path | None, list[dict[str, Any]] | None]:
         mesg: str
@@ -206,38 +200,38 @@ class Basic:
                     entry["filename"] = str(directory / pathlib.Path(entry["filename"]))
         return table, individuals
 
-    def get_source_images_metadata(
+    def get_target_data_frame(
         self, table: pathlib.Path | None, individuals: list[dict[str, Any]] | None
     ) -> pd.core.frame.DataFrame:
-        metadata: pd.core.frame.DataFrame = pd.concat(
+        target_frame: pd.core.frame.DataFrame = pd.concat(
             [
                 pd.read_csv(table) if table is not None else None,
                 pd.DataFrame(individuals) if individuals is not None else None,
             ],
             ignore_index=True,
         )
-        return metadata
+        return target_frame
 
-    def get_source_images_voxels_and_affine(
-        self, metadata: pd.core.frame.DataFrame
+    def get_target_data_voxels_and_affine(
+        self, target_frame: pd.core.frame.DataFrame
     ) -> tuple[list[nib.filebasedimages.FileBasedImage], npt.NDArray[np.float64]]:
         mesg: str
-        # Create table of metadata to describe each input file
-
         # Create nib.filebasedimages.FileBasedImage for each input file.  Note that the
-        # order of the elements in `voxels` must match the order of the rows in
-        # `metadata`.
-        voxels: list[nib.filebasedimages.FileBasedImage]
-        voxels = [nib.load(path) for path in metadata["filename"].tolist()]
+        # order of the elements in `target_images` must match the order of the rows in
+        # `target_frame`.
+        target_images: list[nib.filebasedimages.FileBasedImage]
+        target_images = [nib.load(path) for path in target_frame["filename"].tolist()]
 
         # Check that shapes match
-        all_shapes: list[tuple[int, ...]] = [img.shape for img in voxels]
+        all_shapes: list[tuple[int, ...]] = [img.shape for img in target_images]
         if not all(all_shapes[0] == all_shapes[i] for i in range(1, len(all_shapes))):
             mesg = "The target images are not all the same shape"
             raise ValueError(mesg)
 
         # Find the common affine transformation
-        all_affines: list[npt.NDArray[np.float64]] = [img.affine for img in voxels]
+        all_affines: list[npt.NDArray[np.float64]] = [
+            img.affine for img in target_images
+        ]
         if not all(
             np.allclose(all_affines[0], all_affines[i])
             for i in range(1, len(all_affines))
@@ -249,7 +243,7 @@ class Basic:
             raise ValueError(mesg)
         affine: npt.NDArray[np.float64]
         affine = all_affines[0] if len(all_affines) > 0 else None
-        return voxels, affine
+        return target_images, affine
 
     def get_tested_data(self) -> pd.core.frame.DataFrame:
         mesg: str
@@ -276,9 +270,7 @@ class Basic:
 
         return df_var
 
-    def get_confounding_data(
-        self,
-    ) -> pd.core.frame.DataFrame:
+    def get_confounding_data(self) -> pd.core.frame.DataFrame:
         mesg: str
 
         d_raw: ConfigurationType | ConfigurationValue | None
@@ -490,33 +482,64 @@ class Basic:
 
         return df_var
 
-    # TODO: Do we need to join/sort source_images_data similarly?
     def make_arrays(
         self,
         tested_frame: pd.core.frame.DataFrame,
-        confounding_frame: pd.core.frame.DataFrame,
-    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-        all_information: pd.core.frame.DataFrame
-        all_information = tested_frame.merge(
-            confounding_frame,
-            on=self.join_keys,
-            how="inner",
-            validate="one_to_one",
-        )
-        # TODO: We should dropna sooner, e.g., before the perplexity test
-        all_information = all_information.dropna()
+        target_frame: pd.core.frame.DataFrame,
+        confound_frame: pd.core.frame.DataFrame,
+    ) -> tuple[
+        pd.core.frame.DataFrame,
+        pd.core.frame.DataFrame,
+        pd.core.frame.DataFrame,
+        npt.NDArray[np.float64],
+        list[nib.filebasedimages.FileBasedImage],
+        npt.NDArray[np.float64],
+        npt.NDArray[np.float64],
+    ]:
+        # Note that the join with target_frame is "one_to_many" because there could be
+        # multiple images associated with a particular (src_subject_id, eventname) pair.
+        # For example, they could be images with different modalities (such as FA
+        # vs. MD).
+        all_frame: pd.core.frame.DataFrame
+        all_frame = tested_frame.merge(
+            confound_frame, on=self.join_keys, how="inner", validate="one_to_one"
+        ).merge(target_frame, on=self.join_keys, how="inner", validate="one_to_many")
 
+        # TODO: We should dropna sooner, e.g., before the perplexity test
+        all_frame = all_frame.dropna()
+
+        # Recreate the input frames, respecting any selection, any replication, and any
+        # reordering of rows to produce all_frame
+        tested_frame = all_frame[tested_frame.columns]
         tested_keys: set[str]
         tested_keys = set(tested_frame.columns) - set(self.join_keys)
         tested_array: npt.NDArray[np.float64]
-        tested_array = all_information[tested_keys].to_numpy(dtype=np.float64)
+        tested_array = tested_frame[tested_keys].to_numpy(dtype=np.float64)
 
-        confounding_keys: set[str]
-        confounding_keys = set(confounding_frame.columns) - set(self.join_keys)
-        confounding_array: npt.NDArray[np.float64]
-        confounding_array = all_information[confounding_keys].to_numpy(dtype=np.float64)
+        target_frame = all_frame[target_frame.columns]
+        target_keys: set[str]
+        target_keys = set(target_frame.columns) - set(self.join_keys)
+        target_images: list[nib.filebasedimages.FileBasedImage]
+        target_affine: npt.NDArray[np.float64]
+        target_images, target_affine = self.get_target_data_voxels_and_affine(
+            target_frame[target_keys]
+        )
 
-        return tested_array, confounding_array
+        confound_frame = all_frame[confound_frame.columns]
+        confound_keys: set[str]
+        confound_keys = set(confound_frame.columns) - set(self.join_keys)
+        confound_array: npt.NDArray[np.float64]
+        confound_array = confound_frame[confound_keys].to_numpy(dtype=np.float64)
+
+        return (
+            tested_frame,
+            target_frame,
+            confound_frame,
+            tested_array,
+            target_images,
+            target_affine,
+            confound_array,
+        )
 
     def get_source_mask(
         self,
@@ -620,7 +643,7 @@ class Basic:
         """
         Shapes of the numpy arrays are
           tested_vars.shape == (number_images, number_ksads)
-          target_vars.shape == (number_images, number_voxels)
+          target_vars.shape == (number_images, *voxels.shape)
           confounding_vars.shape == (number_images, number_confounding_vars)
 
         Need this later
