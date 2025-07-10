@@ -99,6 +99,7 @@ class Basic:
         # slope random effects.
         confounding_frame = self.get_confounding_data()
 
+        # Merge frames by join_keys and construct inputs useful for nilearn
         tested_array: npt.NDArray[np.float64]
         target_images: list[nib.filebasedimages.FileBasedImage]
         target_affine: npt.NDArray[np.float64]
@@ -115,27 +116,31 @@ class Basic:
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
         mask_masker: nilearn.maskers.NiftiMasker | None
-        mask_affine_transform: npt.NDArray[np.float64] | None
-        mask_masker, mask_affine_transform = self.get_source_mask()
+        mask_affine: npt.NDArray[np.float64] | None
+        mask_masker, mask_affine = self.get_source_mask()
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
         background_voxels: nib.filebasedimages.FileBasedImage | None
-        background_affine_transform: npt.NDArray[np.float64] | None
-        background_voxels, background_affine_transform = self.get_whole_brain()
+        background_affine: npt.NDArray[np.float64] | None
+        background_voxels, background_affine = self.get_whole_brain()
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
         segmentation_voxels: npt.NDArray[np.float64 | np.int_] | None
-        segmentation_affine_transform: npt.NDArray[np.float64] | None
+        segmentation_affine: npt.NDArray[np.float64] | None
         segmentation_header: collections.OrderedDict[str, Any] | None
         # Can be a labelmap (all-or-none segmentation) or a cloud that gives
         # probabilities for each segment.
-        segmentation_voxels, segmentation_affine_transform, segmentation_header = (
+        segmentation_voxels, segmentation_affine, segmentation_header = (
             self.get_brain_segmentation()
         )
 
+        self.allclose_affines(
+            [target_affine, mask_affine, background_affine, segmentation_affine],
+            "Supplied affine transformations for"
+            " target, mask, background, and segmentation must match",
+        )
+
         # Process inputs to compute statistically significant voxels.
-        # TODO: Don't forget to use the mask_voxels to mask target_vars.  (TODO:
-        # Or use masker and threshold?)
         permuted_ols: dict[str, npt.NDArray[np.float64]]
         glm_ols: npt.NDArray[np.float64]
         permuted_ols, glm_ols = self.compute_significant_voxels(
@@ -171,10 +176,12 @@ class Basic:
         d_raw = self.config_get(["target_variables", "source_directory"])
         directory: pathlib.Path | None
         directory = pathlib.Path(cast(str, d_raw)) if d_raw is not None else None
+
         t_raw: ConfigurationType | ConfigurationValue | None
         t_raw = self.config_get(["target_variables", "table_of_filenames_and_metadata"])
         table: pathlib.Path | None
         table = pathlib.Path(cast(str, t_raw)) if t_raw is not None else None
+
         # We will be modifying and returning `individuals` so make a deepcopy
         i_raw: ConfigurationType | ConfigurationValue | None
         i_raw = self.config_get(
@@ -186,18 +193,27 @@ class Basic:
             if i_raw is not None
             else None
         )
+
         if table is None and individuals is None:
             mesg = (
                 "Must supply at least one of `table_of_filenames_and_metadata`"
                 " or `individual_filenames_and_metadata`"
             )
             raise KeyError(mesg)
-        if directory is not None and table is not None:
+
+        # Prepend directory to table location if appropriate
+        if table is not None and directory is not None:
             table = directory / table
-        if directory is not None and individuals is not None:
-            for entry in individuals:
-                if "filename" in entry:
-                    entry["filename"] = str(directory / pathlib.Path(entry["filename"]))
+        # Convert individual filenames to pathlib.Path and prepend directory
+        if individuals is not None:
+            individuals = [
+                i | {"filename": pathlib.Path(i["filename"])} for i in individuals
+            ]
+            if directory is not None:
+                individuals = [
+                    i | {"filename": directory / i["filename"]} for i in individuals
+                ]
+
         return table, individuals
 
     def get_target_data_frame(
@@ -224,7 +240,7 @@ class Basic:
 
         # Check that shapes match
         all_shapes: list[tuple[int, ...]] = [img.shape for img in target_images]
-        if not all(all_shapes[0] == all_shapes[i] for i in range(1, len(all_shapes))):
+        if len(all_shapes) > 1 and not all(all_shapes[0] == s for s in all_shapes[1:]):
             mesg = "The target images are not all the same shape"
             raise ValueError(mesg)
 
@@ -232,15 +248,11 @@ class Basic:
         all_affines: list[npt.NDArray[np.float64]] = [
             img.affine for img in target_images
         ]
-        if not all(
-            np.allclose(all_affines[0], all_affines[i])
-            for i in range(1, len(all_affines))
-        ):
-            mesg = (
-                "The affine transformation matrices for the images do not all match;"
-                " are the images registered?"
-            )
-            raise ValueError(mesg)
+        self.allclose_affines(
+            all_affines,
+            "The affine transformation matrices for the images do not all match;"
+            " are the images registered?",
+        )
         affine: npt.NDArray[np.float64]
         affine = all_affines[0] if len(all_affines) > 0 else None
         return target_images, affine
@@ -266,6 +278,7 @@ class Basic:
         variables: dict[str, dict[str, Any]]
         variables = copy.deepcopy(cast(dict[str, dict[str, Any]], v_raw))
 
+        df_var: pd.core.frame.DataFrame
         variables, df_var = self.fetch_variables(directory, variable_default, variables)
 
         return df_var
@@ -291,9 +304,9 @@ class Basic:
         variables: dict[str, dict[str, Any]]
         variables = copy.deepcopy(cast(dict[str, dict[str, Any]], v_raw))
 
+        df_var: pd.core.frame.DataFrame
         variables, df_var = self.fetch_variables(directory, variable_default, variables)
-
-        # TODO: Handle longitudinal markings
+        df_var = self.handle_longitudinal(variables, df_var)
 
         return df_var
 
@@ -342,34 +355,33 @@ class Basic:
             for variable, var_config in variables.items()
         }
 
-        # Load files into pandas DataFrames and select the variables and join keys.
+        # Load each file (once) into a pandas DataFrame and select the variables and
+        # join keys.
         dict_df_var: dict[str, pd.core.frame.DataFrame]
         dict_df_var = {
-            filename: pd.read_csv(filename)[
+            fn: pd.read_csv(fn)[
                 *self.join_keys,
                 *{
                     var_config["internal_name"]
                     for var_config in variables.values()
-                    if var_config["filename"] == filename
+                    if var_config["filename"] == fn
                 },
             ]
-            for filename in {
-                var_config["filename"] for var_config in variables.values()
-            }
+            for fn in {var_config["filename"] for var_config in variables.values()}
         }
 
         # Switch to user-specified names.  Do this before merging tables in case of
         # internal_name collisions.
         dict_df_var = {
-            filename: df_var.rename(
+            fn: df_var.rename(
                 columns={
                     var_config["internal_name"]: variable
                     for variable, var_config in variables.items()
-                    if var_config["filename"] == filename
+                    if var_config["filename"] == fn
                     and var_config["internal_name"] != variable
                 }
             )
-            for filename, df_var in dict_df_var.items()
+            for fn, df_var in dict_df_var.items()
         }
 
         # Merge tables into one
@@ -417,7 +429,10 @@ class Basic:
                     # confounded with actual values of 0.
                     new_missing_name: str = variable + "_missing"
                     if new_missing_name in df_var.columns:
-                        mesg = f"Failed to get unique column name for {new_missing_name!r}."
+                        mesg = (
+                            "Failed to get unique column name for"
+                            f" {new_missing_name!r}."
+                        )
                         raise ValueError(mesg)
                     df_var[new_missing_name] = (
                         df_var[variable] == is_missing[0]
@@ -465,21 +480,83 @@ class Basic:
         return variables, df_var
 
     def enforce_perplexity(
-        self, df_var: pd.core.frame.DataFrame, variable: str, minimum_perplexity: float
+        self, df_var: pd.core.frame.DataFrame, variable: str, min_perp: float
     ) -> pd.core.frame.DataFrame:
         counts: dict[Any, int]
         counts = dict(df_var[variable].value_counts(dropna=False).astype(int))
         total: int
         total = sum(counts.values())
-        perplexity: float
-        perplexity = math.prod(
+        perp: float
+        perp = math.prod(
             (total / count) ** (count / total) for count in counts.values() if count > 0
         )
-        if perplexity < minimum_perplexity and not math.isclose(
-            perplexity, minimum_perplexity
-        ):
+        if perp < min_perp and not math.isclose(perp, min_perp):
             df_var = df_var.drop(variable, axis=1)
 
+        return df_var
+
+    def handle_longitudinal(
+        self, variables: dict[str, dict[str, Any]], df_var: pd.core.frame.DataFrame
+    ) -> pd.core.frame.DataFrame:
+        kinds: list[str] = ["time", "intercept", "slope"]
+
+        has: dict[str, list[str]]
+        has = {
+            kind: [
+                variable
+                for variable, var_config in variables.items()
+                if kind in var_config["longitudinal"]
+            ]
+            for kind in kinds
+        }
+
+        mesgs: list[str]
+        mesgs = []
+        if len(has["time"]) > 1:
+            mesgs.append(
+                f'{len(has["time"])} confounding_variables variables {has["time"]} were'
+                ' specified as "time" but having more than 1 is not permitted.'
+            )
+        if len(has["time"]) == 1 and len(has["slope"]) == 0:
+            mesgs.append(
+                f'When one confounding_variables variable {has["time"]} is specified as'
+                ' "time" then at least one must be specified as "slope".'
+            )
+        if len(has["time"]) == 0 and len(has["slope"]) > 0:
+            mesgs.append(
+                f'{len(has["slope"])} confounding_variables variables {has["slope"]}'
+                ' were supplied as "slope" but none are permitted because no'
+                ' confounding variables were supplied as "time".'
+            )
+        if mesgs:
+            mesg: str = "\n".join(mesgs)
+            raise ValueError(mesg)
+
+        # TODO: If some columns have been transformed (e.g., via one-hot), make sure
+        #       that we apply longitudinal considerations to them regardless.
+
+        df_new: dict[str, pd.core.frame.DataFrame]
+        df_new = {
+            kind: df_var[[*self.join_keys, *has[kind]]].copy(deep=True)
+            for kind in kinds
+        }
+
+        if len(has["time"]) > 0:
+            new_time_name: str = "ubhzaeZTE3McmbxX"
+            if any(new_time_name in df_new[kind].columns for kind in kinds):
+                mesg = "Failed to get unique column name for df_time"
+                raise ValueError(mesg)
+            df_new["time"].rename(columns={has["time"][0]: new_time_name})
+            # TODO: Rename non-join-key columns of df_new["slope"], including checking
+            #       that they have not already been used
+            df_new["slope"] = df_new["slope"].merge(
+                df_new["time"], on=self.join_keys, how="inner", validate="one_to_one"
+            )
+            # TODO: Multiply new_time_name column into each slope column
+            # TODO: Keep only slope columns (and join keys)
+            # TODO: Merge slope columns into df_new["intercept"]
+
+        # TODO: Write me
         return df_var
 
     def make_arrays(
@@ -548,31 +625,32 @@ class Basic:
         d_raw = self.config_get(["target_variables", "source_directory"])
         directory: pathlib.Path | None
         directory = pathlib.Path(cast(str, d_raw)) if d_raw is not None else None
+
         f_raw: ConfigurationType | ConfigurationValue | None
         f_raw = self.config_get(["target_variables", "mask", "filename"])
         filename: pathlib.Path | None
         filename = pathlib.Path(cast(str, f_raw)) if f_raw is not None else None
         if directory is not None and filename is not None:
             filename = directory / filename
-        image: nib.filebasedimages.FileBasedImage | None
-        image = nib.load(filename) if filename is not None else None
-        affine: npt.NDArray[np.float64] | None
-        affine = image.affine if image is not None else None
+
         t_raw: ConfigurationType | ConfigurationValue | None
         t_raw = self.config_get(["target_variables", "mask", "threshold"])
         threshold: float | None
         threshold = cast(float, t_raw) if t_raw is not None else None
-        masker: nilearn.maskers.NiftiMasker | None
-        masker = (
-            nilearn.maskers.NiftiMasker(
+
+        image: nib.filebasedimages.FileBasedImage | None
+        image = nib.load(filename) if filename is not None else None
+
+        affine: npt.NDArray[np.float64] | None
+        affine = image.affine if image is not None else None
+
+        masker: nilearn.maskers.NiftiMasker | None = None
+        if image is not None and threshold is not None:
+            masker = nilearn.maskers.NiftiMasker(
                 nilearn.masking.compute_brain_mask(
                     target_img=image, threshold=threshold
                 )
             )
-            if image is not None and threshold is not None
-            else None
-        )
-        if masker is not None:
             masker.fit()
 
         return masker, affine
@@ -586,6 +664,7 @@ class Basic:
         d_raw = self.config_get(["target_variables", "source_directory"])
         directory: pathlib.Path | None
         directory = pathlib.Path(cast(str, d_raw)) if d_raw is not None else None
+
         f_raw: ConfigurationType | ConfigurationValue | None
         f_raw = self.config_get(["target_variables", "background", "filename"])
         filename: pathlib.Path | None
@@ -595,8 +674,10 @@ class Basic:
 
         voxels: nib.filebasedimages.FileBasedImage | None
         voxels = nib.load(filename) if filename is not None else None
+
         affine: npt.NDArray[np.float64] | None
         affine = voxels.affine if voxels is not None else None
+
         return voxels, affine
 
     def get_brain_segmentation(
@@ -610,6 +691,7 @@ class Basic:
         d_raw = self.config_get(["target_variables", "source_directory"])
         directory: pathlib.Path | None
         directory = pathlib.Path(cast(str, d_raw)) if d_raw is not None else None
+
         f_raw: ConfigurationType | ConfigurationValue | None
         f_raw = self.config_get(["target_variables", "segmentation", "filename"])
         filename: pathlib.Path | None
@@ -623,14 +705,32 @@ class Basic:
         if filename is not None:
             voxels, header = nrrd.read(filename)  # shape = (71, 140, 140, 140)
             header = cast(collections.OrderedDict[str, Any], header)
-            affine = np.eye(4, dtype=np.float64)
-            affine[:3, :3] = header["space directions"][-3:, -3:]
-            affine[:3, 3] = header["space origin"][-3:]
-            if header["space"] == "left-posterior-superior":
-                # Convert to right-anterior-superior
-                affine[:2] *= -1.0
+            affine = self.construct_affine(header)
 
         return voxels, affine, header
+
+    def construct_affine(
+        self, header: collections.OrderedDict[str, Any]
+    ) -> npt.NDArray[np.float64]:
+        affine: npt.NDArray[np.float64]
+
+        affine = np.eye(4, dtype=np.float64)
+        affine[:3, :3] = header["space directions"][-3:, -3:]
+        affine[:3, 3] = header["space origin"][-3:]
+        if header["space"] == "left-posterior-superior":
+            # Convert to right-anterior-superior
+            affine[:2] *= -1.0
+
+        return affine
+
+    def allclose_affines(
+        self, affines: list[npt.NDArray[np.float64]], mesg: str
+    ) -> None:
+        affines = [a for a in affines if a is not None]
+        if len(affines) > 1 and not all(
+            np.allclose(affines[0], a) for a in affines[1:]
+        ):
+            raise ValueError(mesg)
 
     def compute_significant_voxels(
         self,
@@ -652,10 +752,8 @@ class Basic:
           max_values_per_iteration: int = 1_000_000_000
           number_iterations = math.ceil(number_values / max_values_per_iteration)
         """
-        # TODO: Should we handle multiple channel data too?
-        # TODO: Change target_vars to be a list of lazy-loaded nibabel nifti images.
-        #       Once we run permuted_ols on some voxels, we'll want to release the
-        #       memory for those voxels to make room for the next set of voxels.
+        # TODO: Should we handle multiple channel data too?  If so, how?
+        # TODO: Verify that masker is doing what we hope it is doing
         # TODO: Write me
         return {}, np.zeros((), dtype=np.float64)
 
