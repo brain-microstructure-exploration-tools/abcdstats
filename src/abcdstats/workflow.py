@@ -204,15 +204,12 @@ class Basic:
         # Prepend directory to table location if appropriate
         if table is not None and directory is not None:
             table = directory / table
-        # Convert individual filenames to pathlib.Path and prepend directory
-        if individuals is not None:
+        # Prepend directory to individual filenames if appropriate
+        if individuals is not None and directory is not None:
             individuals = [
-                i | {"filename": pathlib.Path(i["filename"])} for i in individuals
+                i | {"filename": str(directory / pathlib.Path(i["filename"]))}
+                for i in individuals
             ]
-            if directory is not None:
-                individuals = [
-                    i | {"filename": directory / i["filename"]} for i in individuals
-                ]
 
         return table, individuals
 
@@ -226,6 +223,21 @@ class Basic:
             ],
             ignore_index=True,
         )
+
+        # Complain if there are duplicate filenames
+        dups: dict[str, int]
+        dups = dict(target_frame["filename"].value_counts(dropna=True))
+        dups = {file: count for file, count in dups.items() if count > 1}
+        if dups:
+            mesg = (
+                "Each image can be a target only once:\n  "
+                + ",\n  ".join(
+                    [f"{file} appears {count} times." for file, count in dups.items()]
+                )
+                + "."
+            )
+            raise ValueError(mesg)
+
         return target_frame
 
     def get_target_data_voxels_and_affine(
@@ -278,8 +290,12 @@ class Basic:
         variables: dict[str, dict[str, Any]]
         variables = copy.deepcopy(cast(dict[str, dict[str, Any]], v_raw))
 
+        df_by_var: dict[str, pd.core.frame.DataFrame]
+        variables, df_by_var = self.fetch_variables(
+            directory, variable_default, variables
+        )
         df_var: pd.core.frame.DataFrame
-        variables, df_var = self.fetch_variables(directory, variable_default, variables)
+        df_var = self.merge_df_list(list(df_by_var.values()))
 
         return df_var
 
@@ -304,10 +320,14 @@ class Basic:
         variables: dict[str, dict[str, Any]]
         variables = copy.deepcopy(cast(dict[str, dict[str, Any]], v_raw))
 
-        df_var: pd.core.frame.DataFrame
-        variables, df_var = self.fetch_variables(directory, variable_default, variables)
-        df_var = self.handle_longitudinal(variables, df_var)
+        df_by_var: dict[str, pd.core.frame.DataFrame]
+        variables, df_by_var = self.fetch_variables(
+            directory, variable_default, variables
+        )
+        df_by_var = self.handle_longitudinal(variables, df_by_var)
 
+        df_var: pd.core.frame.DataFrame
+        df_var = self.merge_df_list(list(df_by_var.values()))
         return df_var
 
     def fetch_variables(
@@ -315,7 +335,7 @@ class Basic:
         directory: pathlib.Path | None,
         variable_default: dict[str, Any],
         variables: dict[str, dict[str, Any]],
-    ) -> tuple[dict[str, dict[str, Any]], pd.core.frame.DataFrame]:
+    ) -> tuple[dict[str, dict[str, Any]], dict[str, pd.core.frame.DataFrame]]:
         # Use defaults unless a variable-specific value is supplied
         variables = {
             variable: variable_default | var_config
@@ -357,22 +377,24 @@ class Basic:
 
         # Load each file (once) into a pandas DataFrame and select the variables and
         # join keys.
-        dict_df_var: dict[str, pd.core.frame.DataFrame]
-        dict_df_var = {
+        df_by_file: dict[str, pd.core.frame.DataFrame]
+        df_by_file = {
             fn: pd.read_csv(fn)[
-                *self.join_keys,
-                *{
-                    var_config["internal_name"]
-                    for var_config in variables.values()
-                    if var_config["filename"] == fn
-                },
+                [
+                    *self.join_keys,
+                    *{
+                        var_config["internal_name"]
+                        for var_config in variables.values()
+                        if var_config["filename"] == fn
+                    },
+                ]
             ]
             for fn in {var_config["filename"] for var_config in variables.values()}
         }
 
         # Switch to user-specified names.  Do this before merging tables in case of
         # internal_name collisions.
-        dict_df_var = {
+        df_by_file = {
             fn: df_var.rename(
                 columns={
                     var_config["internal_name"]: variable
@@ -381,20 +403,12 @@ class Basic:
                     and var_config["internal_name"] != variable
                 }
             )
-            for fn, df_var in dict_df_var.items()
+            for fn, df_var in df_by_file.items()
         }
 
-        # Merge tables into one
-        table_names: list[str] = list(dict_df_var.keys())
-        df_var: pd.core.frame.DataFrame
-        df_var = dict_df_var[table_names[0]]
-        for t in table_names[1:]:
-            df_var = df_var.merge(
-                dict_df_var[t], on=self.join_keys, how="inner", validate="one_to_one"
-            )
-        del dict_df_var
-
-        # Apply convert, handle_missing and is_missing
+        # Segregate dataframes by variable.
+        df_by_var: dict[str, pd.core.frame.DataFrame]
+        df_by_var = {}
         for variable, var_config in variables.items():
             convert: dict[str, Any]
             convert = var_config["convert"]
@@ -406,9 +420,21 @@ class Basic:
             var_type = var_config["type"]
             minimum_perplexity: float
             minimum_perplexity = var_config["minimum_perplexity"]
+            df_var: pd.core.frame.DataFrame
+            df_var = df_by_file[var_config["filename"]][[*self.join_keys, variable]]
 
+            # Apply convert, handle_missing and is_missing
             for src, dst in convert.items():
                 df_var[variable] = df_var[variable].replace(src, dst)
+
+            # Meaning of `handle_missing`:
+            # * "invalidate" (throw away scan if it has this field missing)
+            # * "together" (all scans marked as "missing" are put in one category that
+            #   is dedicated to all missing data)
+            # * "by_value" (for each IsMissing value, all scans with that value are put
+            #   in a category)
+            # * "separately" (each row with a missing value is its own category; e.g., a
+            #   patient with no siblings in the study)
 
             if handle_missing != "by_value" and len(is_missing) > 1:
                 # Prior to handling the separate cases, make all missing values equal to
@@ -475,15 +501,20 @@ class Basic:
                     df_var, dummy_na=True, columns=[variable], drop_first=False
                 )
 
-            # Check perplexity
+            # TODO: Are we checking all relevant columns?
+            # TODO: Should we instead check perplexity after merging tested, target,
+            # confounding.  Then we'll have downselected the number of rows.
             df_var = self.enforce_perplexity(df_var, variable, minimum_perplexity)
-        return variables, df_var
+
+            df_by_var[variable] = df_var
+
+        return variables, df_by_var
 
     def enforce_perplexity(
         self, df_var: pd.core.frame.DataFrame, variable: str, min_perp: float
     ) -> pd.core.frame.DataFrame:
         counts: dict[Any, int]
-        counts = dict(df_var[variable].value_counts(dropna=False).astype(int))
+        counts = dict(df_var[variable].value_counts(dropna=False))
         total: int
         total = sum(counts.values())
         perp: float
@@ -496,8 +527,10 @@ class Basic:
         return df_var
 
     def handle_longitudinal(
-        self, variables: dict[str, dict[str, Any]], df_var: pd.core.frame.DataFrame
-    ) -> pd.core.frame.DataFrame:
+        self,
+        variables: dict[str, dict[str, Any]],
+        df_by_var: dict[str, pd.core.frame.DataFrame],
+    ) -> dict[str, pd.core.frame.DataFrame]:
         kinds: list[str] = ["time", "intercept", "slope"]
 
         has: dict[str, list[str]]
@@ -522,6 +555,10 @@ class Basic:
                 f'When one confounding_variables variable {has["time"]} is specified as'
                 ' "time" then at least one must be specified as "slope".'
             )
+        # if len(has["time"]) == 1 and has["time"][0] in has["slope"]:
+        #     mesgs.append(
+        #         f'confounding_variable variable {has["time"]} cannot be both "time" and "slope"'
+        #     )
         if len(has["time"]) == 0 and len(has["slope"]) > 0:
             mesgs.append(
                 f'{len(has["slope"])} confounding_variables variables {has["slope"]}'
@@ -532,32 +569,42 @@ class Basic:
             mesg: str = "\n".join(mesgs)
             raise ValueError(mesg)
 
-        # TODO: If some columns have been transformed (e.g., via one-hot), make sure
-        #       that we apply longitudinal considerations to them regardless.
-
-        df_new: dict[str, pd.core.frame.DataFrame]
-        df_new = {
-            kind: df_var[[*self.join_keys, *has[kind]]].copy(deep=True)
-            for kind in kinds
-        }
-
         if len(has["time"]) > 0:
-            new_time_name: str = "ubhzaeZTE3McmbxX"
-            if any(new_time_name in df_new[kind].columns for kind in kinds):
+            new_time_name: str = "E3McmbxXubhzaeZT"
+            if any(new_time_name in df_var.columns for df_var in df_by_var.values()):
                 mesg = "Failed to get unique column name for df_time"
                 raise ValueError(mesg)
-            df_new["time"].rename(columns={has["time"][0]: new_time_name})
-            # TODO: Rename non-join-key columns of df_new["slope"], including checking
-            #       that they have not already been used
-            df_new["slope"] = df_new["slope"].merge(
-                df_new["time"], on=self.join_keys, how="inner", validate="one_to_one"
+            df_time: pd.core.frame.DataFrame
+            df_time = (
+                df_by_var[has["time"][0]]
+                .copy(deep=True)
+                .rename(columns={has["time"][0]: new_time_name})
             )
-            # TODO: Multiply new_time_name column into each slope column
-            # TODO: Keep only slope columns (and join keys)
-            # TODO: Merge slope columns into df_new["intercept"]
 
-        # TODO: Write me
-        return df_var
+            slope: str = "_slope"
+            if any(
+                v + slope in df.columns
+                for v in has["slope"]
+                for df in df_by_var.values()
+            ):
+                mesg = "Failed to get unique column name for slope variable"
+                raise ValueError(mesg)
+            df_slope_by_var: dict[str, pd.core.frame.DataFrame]
+            df_slope_by_var = {
+                v: df_by_var[v].merge(
+                    df_time, on=self.join_keys, how="inner", validate="one_to_one"
+                )
+                for v in has["slope"]
+            }
+            df_slope_by_var = {
+                v + slope: df.assign(**{v + slope: df[new_time_name] * df[v]}).drop(
+                    columns=[v, new_time_name]
+                )
+                for v, df in df_slope_by_var.items()
+            }
+            df_by_var = {**df_by_var, **df_slope_by_var}
+
+        return df_by_var
 
     def make_arrays(
         self,
@@ -775,3 +822,18 @@ class Basic:
         my_value: ConfigurationType | ConfigurationValue | None
         my_value = my_dict.get(list_of_keys[-1])
         return my_value
+
+    def merge_df_list(
+        self,
+        df_list: list[pd.core.frame.DataFrame],
+    ) -> pd.core.frame.DataFrame:
+        response: pd.core.frame.DataFrame
+        if df_list:
+            response = df_list[0]
+            for next in df_list[1:]:
+                response = response.merge(
+                    next, on=self.join_keys, how="inner", validate="one_to_one"
+                )
+        else:
+            response = pd.core.frame.DataFrame()
+        return response
