@@ -28,6 +28,48 @@ tested_variables:
 target_variables:
   source_directory: /data2/ABCD/gor-images/coregistered-images
   table_of_filenames_and_metadata: /home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcdstats/src/abcdstats/abcdstats_target_variables.csv
+  individual_filenames_and_metadata:
+    - filename: gorinput0000-modality0-sub-NDARINV5U642ALM_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV5U642ALM
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+      description: This is by far the most interesting of the images
+    - filename: gorinput0002-modality0-sub-NDARINV70FU58C1_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV70FU58C1
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0004-modality0-sub-NDARINVFVN56Y3J_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVFVN56Y3J
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0006-modality0-sub-NDARINVW17JBT47_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVW17JBT47
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0008-modality0-sub-NDARINV41E41YFZ_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INV41E41YFZ
+      event_name: 2_year_follow_up_y_arm_1
+      modality: fa
+    - filename: gorinput0010-modality0-sub-NDARINVB8234KWV_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVB8234KWV
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0012-modality0-sub-NDARINVWRCZDDAY_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVWRCZDDAY
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0014-modality0-sub-NDARINVEP4T9K93_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVEP4T9K93
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0016-modality0-sub-NDARINVED05HV5A_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVED05HV5A
+      event_name: baseline_year_1_arm_1
+      modality: fa
+    - filename: gorinput0018-modality0-sub-NDARINVJUK1TMPK_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz
+      src_subject_id: NDAR_INVJUK1TMPK
+      event_name: baseline_year_1_arm_1
+      modality: fa
   mask:
     filename: /data2/ABCD/gor-images/gortemplate0.nii.gz
     threshold: 0.7
