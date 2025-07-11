@@ -1882,17 +1882,15 @@ filenames_and_metadata = [
     },
 ]
 
-# Write out the information in the YAML file or in the CSV file (or some of each?), but
+# Write out the information in the YAML file or in the CSV file or some of each, but
 # not both
-individuals: list[dict[str, str]] | None
-table: list[dict[str, str]] | None
+yaml_filename: str = "abcdstats_config.yaml"
 csv_filename: str = "/home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcdstats/src/abcdstats/abcdstats_target_variables.csv"
-if 3 + 4 <= 6:
-    individuals = filenames_and_metadata
-    table = None
-else:
-    individuals = None
-    table = filenames_and_metadata
+
+yaml_images: list[dict[str, str]]
+yaml_images = filenames_and_metadata[:10]
+csv_images: list[dict[str, str]]
+csv_images = filenames_and_metadata[10:]
 
 sample_configuration: ConfigurationType = {
     "tested_variables": {
@@ -1923,16 +1921,8 @@ sample_configuration: ConfigurationType = {
     },
     "target_variables": {
         "source_directory": "/data2/ABCD/gor-images/coregistered-images",
-        **(
-            {"table_of_filenames_and_metadata": csv_filename}
-            if table is not None
-            else {}
-        ),
-        **(
-            {"individual_filenames_and_metadata": individuals}
-            if individuals is not None
-            else {}
-        ),
+        **({"table_of_filenames_and_metadata": csv_filename} if csv_images else {}),
+        **({"individual_filenames_and_metadata": yaml_images} if yaml_images else {}),
         "mask": {
             "filename": "/data2/ABCD/gor-images/gortemplate0.nii.gz",
             "threshold": 0.7,
@@ -1979,7 +1969,6 @@ sample_configuration: ConfigurationType = {
 }
 
 # Write out the YAML file
-yaml_filename: str = "abcdstats_config.yaml"
 with pathlib.Path(yaml_filename).open("w", encoding="utf-8") as file:
     yaml.dump(sample_configuration, file, default_flow_style=False, sort_keys=False)
 
@@ -1987,11 +1976,12 @@ with pathlib.Path(yaml_filename).open("w", encoding="utf-8") as file:
 # Populate any missing fields
 default_entry: dict[str, str]
 default_entry = {"modality": "", "description": ""}
-table = table if table is not None else []
-table = [default_entry | entry for entry in table]
+csv_images = [default_entry | entry for entry in csv_images]
 # Specify column order and write file
 column_order: list[str]
 column_order = ["filename", "src_subject_id", "event_name", "modality", "description"]
-pd.DataFrame(table, columns=column_order).to_csv(csv_filename, index=False, header=True)
+pd.DataFrame(csv_images, columns=column_order).to_csv(
+    csv_filename, index=False, header=True
+)
 
 print(f"Don't forget to run `pre-commit run -a` for {yaml_filename}")  # noqa: T201
