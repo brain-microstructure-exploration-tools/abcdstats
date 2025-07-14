@@ -7,7 +7,7 @@ import numpy as np  # type: ignore[import-not-found,import-untyped,unused-ignore
 import pandas as pd  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import yaml  # type: ignore[import-not-found,import-untyped,unused-ignore]
 
-BasicValue: TypeAlias = str | int | float
+BasicValue: TypeAlias = bool | int | float | str | None
 ConfigurationValue: TypeAlias = BasicValue | list[Any]
 ConfigurationType: TypeAlias = dict[str, Union[ConfigurationValue, "ConfigurationType"]]
 

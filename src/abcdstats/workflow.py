@@ -15,7 +15,7 @@ import numpy.typing as npt  # type: ignore[import-not-found,import-untyped,unuse
 import pandas as pd  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import yaml  # type: ignore[import-not-found,import-untyped,unused-ignore]
 
-BasicValue: TypeAlias = str | int | float
+BasicValue: TypeAlias = bool | int | float | str | None
 ConfigurationValue: TypeAlias = BasicValue | list[Any]
 ConfigurationType: TypeAlias = dict[str, Union[ConfigurationValue, "ConfigurationType"]]
 
@@ -46,16 +46,24 @@ class Basic:
             "minimum_perplexity": 1.0,
         }
         self.config_default: ConfigurationType = {
-            "tested_variables": {
-                "variable_default": variable_default,
-            },
-            "target_variables": {
-                # TODO: Do we still use filename_pattern?
-                "filename_pattern": r"^.*\.nii(\.gz)?$",
-                "segmentation": {"background_index": 0},
-            },
+            "tested_variables": {"variable_default": variable_default},
+            "target_variables": {"segmentation": {"background_index": 0}},
             "confounding_variables": {
                 "variable_default": {**variable_default, "longitudinal": ["intercept"]},
+            },
+            "output": {
+                "local_maxima": {"minimum_peak": 0.1, "minimum_radius": 3},
+                "permuted_ols": {
+                    "model_intercept": True,
+                    "n_perm": 10000,
+                    "two_sided_test": True,
+                    "random_state": None,
+                    "n_jobs": -1,  # All available
+                    "verbose": 1,
+                    "tfce": False,
+                    "threshold": None,
+                    "output_type": "dict",
+                },
             },
         }
 
@@ -145,7 +153,7 @@ class Basic:
         glm_ols: npt.NDArray[np.float64]
         permuted_ols, glm_ols = self.compute_significant_voxels(
             tested_vars=tested_array,
-            target_vars=target_images,
+            target_images=target_images,
             confounding_vars=confounding_array,
             masker=mask_masker,
         )
@@ -392,8 +400,7 @@ class Basic:
             for fn in {var_config["filename"] for var_config in variables.values()}
         }
 
-        # Switch to user-specified names.  Do this before merging tables in case of
-        # internal_name collisions.
+        # Switch to user-specified names.
         df_by_file = {
             fn: df_var.rename(
                 columns={
@@ -501,30 +508,38 @@ class Basic:
                     df_var, dummy_na=True, columns=[variable], drop_first=False
                 )
 
-            # TODO: Are we checking all relevant columns?
             # TODO: Should we instead check perplexity after merging tested, target,
-            # confounding.  Then we'll have downselected the number of rows.
-            df_var = self.enforce_perplexity(df_var, variable, minimum_perplexity)
+            # confounding.  By then we'll have downselected the number of rows.
+            df_var = self.enforce_perplexity(df_var, minimum_perplexity)
 
             df_by_var[variable] = df_var
 
         return variables, df_by_var
 
     def enforce_perplexity(
-        self, df_var: pd.core.frame.DataFrame, variable: str, min_perp: float
+        self, df_var: pd.core.frame.DataFrame, min_perp: float
     ) -> pd.core.frame.DataFrame:
-        counts: dict[Any, int]
-        counts = dict(df_var[variable].value_counts(dropna=False))
-        total: int
-        total = sum(counts.values())
-        perp: float
-        perp = math.prod(
-            (total / count) ** (count / total) for count in counts.values() if count > 0
+        return (
+            df_var.drop(
+                columns=[
+                    col
+                    for col in df_var.columns
+                    if col not in self.join_keys
+                    for counts in (df_var[col].value_counts(dropna=False),)
+                    for total in (sum(counts),)
+                    for perp in (
+                        math.prod(
+                            (total / count) ** (count / total)
+                            for count in counts
+                            if count > 0
+                        ),
+                    )
+                    if perp < min_perp and not math.isclose(perp, min_perp)
+                ]
+            )
+            if min_perp > 1.0
+            else df_var
         )
-        if perp < min_perp and not math.isclose(perp, min_perp):
-            df_var = df_var.drop(variable, axis=1)
-
-        return df_var
 
     def handle_longitudinal(
         self,
@@ -555,10 +570,6 @@ class Basic:
                 f'When one confounding_variables variable {has["time"]} is specified as'
                 ' "time" then at least one must be specified as "slope".'
             )
-        # if len(has["time"]) == 1 and has["time"][0] in has["slope"]:
-        #     mesgs.append(
-        #         f'confounding_variable variable {has["time"]} cannot be both "time" and "slope"'
-        #     )
         if len(has["time"]) == 0 and len(has["slope"]) > 0:
             mesgs.append(
                 f'{len(has["slope"])} confounding_variables variables {has["slope"]}'
@@ -782,27 +793,69 @@ class Basic:
     def compute_significant_voxels(
         self,
         *,
-        tested_vars: npt.NDArray[np.float64],  # noqa: ARG002
-        target_vars: list[nib.filebasedimages.FileBasedImage],  # noqa: ARG002
-        confounding_vars: npt.NDArray[np.float64],  # noqa: ARG002
-        masker: nilearn.maskers.NiftiMasker,  # noqa: ARG002
+        tested_vars: npt.NDArray[np.float64],
+        target_images: list[nib.filebasedimages.FileBasedImage],
+        confounding_vars: npt.NDArray[np.float64] | None,
+        masker: nilearn.maskers.NiftiMasker | None,
     ) -> tuple[dict[str, npt.NDArray[np.float64]], npt.NDArray[np.float64]]:
+        mesg: str
         """
         Shapes of the numpy arrays are
           tested_vars.shape == (number_images, number_ksads)
           target_vars.shape == (number_images, *voxels.shape)
           confounding_vars.shape == (number_images, number_confounding_vars)
+        """
+        target_vars: npt.NDArray[np.float64]
+        target_vars = np.stack([img.get_fdata() for img in target_images])
 
-        Need this later
+        # TODO: If masker is correct except for the number of channels, can we recover?
+        if masker is not None and target_vars.shape[1:] != masker.mask_img_.shape:
+            mesg = (
+                f"The shape of each target image {target_vars.shape[1:]} and the"
+                f" shape of the mask {masker.mask_img_.shape} must match"
+            )
+            raise ValueError(mesg)
+
+        perm_ols_spec: dict[str, type]  # Each can also be `None`
+        perm_ols_spec = {
+            "model_intercept": bool,
+            "n_perm": int,
+            "two_sided_test": bool,
+            "random_state": int,
+            "n_jobs": int,
+            "verbose": int,
+            "tfce": bool,
+            "threshold": float,
+            "output_type": str,
+        }
+
+        # Call nilearn.mass_univariate.permuted_ols.
+        # TODO: Verify that masker is doing what we hope it is doing
+        permuted_ols_response: dict[str, npt.NDArray[np.float64]]
+        permuted_ols_response = nilearn.mass_univariate.permuted_ols(
+            tested_vars=tested_vars,  # ksads
+            target_vars=target_vars,  # voxels
+            confounding_vars=confounding_vars,  # e.g., interview_age
+            **{
+                k: v
+                for k, v in cast(
+                    dict[str, Any], self.config_get(["output", "permuted_ols"])
+                ).items()
+                if k in perm_ols_spec
+            },
+        )
+
+        # TODO: Write glm_ols part
+
+        """
+        TODO: Maybe we'll need this later:
           number_values: int
           number_values = sum([math.prod(img.shape) for img in source_images_voxels])
           max_values_per_iteration: int = 1_000_000_000
           number_iterations = math.ceil(number_values / max_values_per_iteration)
         """
-        # TODO: Should we handle multiple channel data too?  If so, how?
-        # TODO: Verify that masker is doing what we hope it is doing
-        # TODO: Write me
-        return {}, np.zeros((), dtype=np.float64)
+
+        return permuted_ols_response, np.zeros((), dtype=np.float64)
 
     def compute_local_maxima(
         self,
@@ -824,8 +877,7 @@ class Basic:
         return my_value
 
     def merge_df_list(
-        self,
-        df_list: list[pd.core.frame.DataFrame],
+        self, df_list: list[pd.core.frame.DataFrame]
     ) -> pd.core.frame.DataFrame:
         response: pd.core.frame.DataFrame
         if df_list:
