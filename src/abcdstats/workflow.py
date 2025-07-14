@@ -298,6 +298,8 @@ class Basic:
         variables: dict[str, dict[str, Any]]
         variables = copy.deepcopy(cast(dict[str, dict[str, Any]], v_raw))
 
+        # TODO: Currently fetch_variables will sometimes use one-hot for a tested
+        # variable.  Is this what we want?
         df_by_var: dict[str, pd.core.frame.DataFrame]
         variables, df_by_var = self.fetch_variables(
             directory, variable_default, variables
@@ -502,7 +504,9 @@ class Basic:
                     )
                     raise ValueError(mesg)
 
-            # Convert categorical data to a multicolumn one-hot representation
+            # Convert categorical data to a multicolumn one-hot representation.
+            # TODO: If this is dropping one category, can we ensure that the "missing"
+            # category is dropped?
             if var_type == "unordered":
                 df_var = pd.get_dummies(
                     df_var, dummy_na=True, columns=[variable], drop_first=False

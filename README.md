@@ -142,3 +142,100 @@ pip install abcdstats[test,dev,docs]
 ## Examples
 
 Example uses of the code can be found in the [examples](examples/) directory.
+
+## Understanding the configuration
+
+Each run is configured with a YAML file and, optionally, a CSV file. The CSV
+file is described below with the `table_of_filenames_and_metadata` field below.
+The YAML configuration file is organized into four sections as follows:
+
+- **tested_variables**: This section specifies which variables are to be tested.
+  Typically they are KSADS variables. The specific fields are:
+  - **source_directory**: All relative paths supplied in the tested_variables
+    section will be considered as relative to this directory.
+  - **variable_default**: Allows one to specify defaults for all variables in
+    the tested_variables section so that those defaults need not be repeated
+    multiple times.
+  - **variable**: Each entry in this section is the name of a tested variable
+    (such as "ksads_1_187_t"). Associated with it is information on how to treat
+    the variable.
+    - **filename**: ABCD csv file that contains the data for the tested variable
+    - **convert**: A dictionary that explains how to convert the tested
+      variable's data. Each (key, value) pair of the dictionary specifies what
+      the datum (the key) is to be converted to (the value).
+    - **handle_missing**: Can be set to any of
+      - **invalidate**: throw away target image if it has this field missing
+      - **together**: all target images marked as "missing" are put in one
+        category that is dedicated to all missing data
+      - **by_value**: for each `is_missing` value, all target images with that
+        value are put in a category
+      - **separately**: each row with a missing value is its own category; e.g.,
+        a patient with no siblings in the study
+    - **type**: whether the variable is "ordered" (such as a number representing
+      an intensity) or "unordered" (as in a number representing a category)
+    - **is_missing**: a list of values that should be considered as missing such
+      as `.nan` or `""`
+    - **description**: an optional, user-supplied string
+    - **internal_name**: optionally, the name by which this tested variable will
+      be known within `filename`.
+- **target_variables**: This section specifies the target images that are to be
+  analyzed. The specific fields are:
+  - **source_directory**: All relative paths supplied in the target_variables
+    section will be considered as relative to this directory.
+  - **table_of_filenames_and_metadata**: the file location for the CSV file that
+    lists target images to be analyzed. The columns of the CSV file are
+    `filename`, `src_subject_id`, `event_name`, `modality`, and `description`,
+    as described next.
+  - **individual_filenames_and_metadata**: a way to specify target images in the
+    YAML file (rather than in the CSV file).
+    - **filename**: the location of the .nii.gz file containing the voxel
+      intensities
+    - **src_subject_id**: the ABCD subject ID associated with this file (with
+      prefix `NDAR_`).
+    - **event_name**: the ABCD event_name associated with this file (such as
+      `2_year_follow_up_y_arm_1`).
+    - **modality**: Such as `fa` or `md`
+    - **description**: an optional, user-supplied string
+  - **mask**: describes mask (e.g., white matter mask) that specifies which
+    voxels are meaningful
+    - **filename**: the location of the .nii.gz file containing the mask
+    - **threshold**: the threshold intensity for determinging which voxels to
+      include
+  - **segmentation**:
+    - **filename**: the location of the .nii.gz file containing segmentation
+      information
+    - **background_index**: The numerical value of the segmentation segment that
+      represents background
+  - **background**:
+    - **filename**: the location of the .nii.gz file containing a background
+      image on which output information is overlaid.
+- **confounding_variables**: These are variables that may affect voxel values
+  and hide the significant signal that we are hoping to detect for the tested
+  variables. The specific fields are:
+  - **source_directory**: All relative paths supplied in the
+    confounding_variables section will be considered as relative to this
+    directory.
+  - **variable_default**: Allows one to specify defaults for all variables in
+    the confounding_variables section so that those defaults need not be
+    repeated multiple times.
+  - **variable**: Each entry in this section is the name of a confounding
+    variable (such as "interview_age", "site_id_l", or "demo_gender_id_v2").
+    Associated with it is information on how to treat the variable.
+    - Any field from `tested_variable.variable` above.
+    - **minimum_perplexity**: A numerical value at least equal to 1.0. A
+      confounding variable with perplexity (i.e., exponentiated entropy) below
+      this threshold will be deemed too constant and will be discarded. (If a
+      variable is equally likely to be any of $N$ possibilities, its perplexity
+      is $N$.)
+    - **longitudinal**: This describes whether the confounding variable should
+      be used as an intercep and/or slope random effect. Can be any one or more
+      of `time`, `intercept`, or `slope`; see the [Methods](#Methods) section
+      above.
+- **output**: This specifies how to post-process and save the results of the
+  analysis
+  - **destination_directory**: Where to write the output
+  - **local_maxima**: How do define a local maximum of statistical significance.
+    - **minimum_peak**: Show all peaks with $-\log p$ at least as large as the
+      specified value.
+    - **maximum_radius**: If peak falls into a background segment, search of up
+      to this radius for a non-background label for this peak.
