@@ -47,12 +47,15 @@ class Basic:
         }
         self.config_default: ConfigurationType = {
             "tested_variables": {"variable_default": variable_default},
-            "target_variables": {"segmentation": {"background_index": 0}},
+            "target_variables": {
+                "mask": {"threshold": 0.5},
+                "segmentation": {"background_index": 0},
+            },
             "confounding_variables": {
-                "variable_default": {**variable_default, "longitudinal": ["intercept"]},
+                "variable_default": {**variable_default, "longitudinal": ["intercept"]}
             },
             "output": {
-                "local_maxima": {"minimum_peak": 0.1, "minimum_radius": 3},
+                "local_maxima": {"minimum_negative_log10_p": 0.1, "cluster_radius": 3},
                 "permuted_ols": {
                     "model_intercept": True,
                     "n_perm": 10000,
@@ -128,9 +131,9 @@ class Basic:
         mask_masker, mask_affine = self.get_source_mask()
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
-        background_voxels: nib.filebasedimages.FileBasedImage | None
-        background_affine: npt.NDArray[np.float64] | None
-        background_voxels, background_affine = self.get_whole_brain()
+        template_voxels: nib.filebasedimages.FileBasedImage | None
+        template_affine: npt.NDArray[np.float64] | None
+        template_voxels, template_affine = self.get_template()
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
         segmentation_voxels: npt.NDArray[np.float64 | np.int_] | None
@@ -143,9 +146,9 @@ class Basic:
         )
 
         self.allclose_affines(
-            [target_affine, mask_affine, background_affine, segmentation_affine],
+            [target_affine, mask_affine, template_affine, segmentation_affine],
             "Supplied affine transformations for"
-            " target, mask, background, and segmentation must match",
+            " target, mask, template, and segmentation must match",
         )
 
         # Process inputs to compute statistically significant voxels.
@@ -231,6 +234,8 @@ class Basic:
             ],
             ignore_index=True,
         )
+
+        # TODO: Keep only those images that are the `desired_modality`.
 
         # Complain if there are duplicate filenames
         dups: dict[str, int]
@@ -717,7 +722,7 @@ class Basic:
 
         return masker, affine
 
-    def get_whole_brain(
+    def get_template(
         self,
     ) -> tuple[
         nib.filebasedimages.FileBasedImage | None, npt.NDArray[np.float64] | None
@@ -728,7 +733,7 @@ class Basic:
         directory = pathlib.Path(cast(str, d_raw)) if d_raw is not None else None
 
         f_raw: ConfigurationType | ConfigurationValue | None
-        f_raw = self.config_get(["target_variables", "background", "filename"])
+        f_raw = self.config_get(["target_variables", "template", "filename"])
         filename: pathlib.Path | None
         filename = pathlib.Path(cast(str, f_raw)) if f_raw is not None else None
         if directory is not None and filename is not None:

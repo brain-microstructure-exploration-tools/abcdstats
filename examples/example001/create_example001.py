@@ -1884,8 +1884,8 @@ filenames_and_metadata = [
 
 # Write out the information in the YAML file or in the CSV file or some of each, but
 # not both
-yaml_filename: str = "abcdstats_config.yaml"
-csv_filename: str = "/home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcdstats/src/abcdstats/abcdstats_target_variables.csv"
+yaml_filename: str = "example001.yaml"
+csv_filename: str = "/home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcdstats/examples/example001/example001.csv"
 
 yaml_images: list[dict[str, str]]
 yaml_images = filenames_and_metadata[:10]
@@ -1893,6 +1893,7 @@ csv_images: list[dict[str, str]]
 csv_images = filenames_and_metadata[10:]
 
 sample_configuration: ConfigurationType = {
+    "version": "1.0",
     "tested_variables": {
         "source_directory": "/data2/ABCD/abcd-5.0-tabular-data-extracted",
         "variable_default": {
@@ -1921,6 +1922,7 @@ sample_configuration: ConfigurationType = {
     },
     "target_variables": {
         "source_directory": "/data2/ABCD/gor-images/coregistered-images",
+        "desired_modality": "fa",
         **({"table_of_filenames_and_metadata": csv_filename} if csv_images else {}),
         **({"individual_filenames_and_metadata": yaml_images} if yaml_images else {}),
         "mask": {
@@ -1931,7 +1933,7 @@ sample_configuration: ConfigurationType = {
             "filename": "/home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcd-data-exploration/prototype/segmentation_data_mrtrix.seg.nrrd",
             "background_index": 0,
         },
-        "background": {"filename": "/data2/ABCD/gor-images/gortemplate0.nii.gz"},
+        "template": {"filename": "/data2/ABCD/gor-images/gortemplate0.nii.gz"},
     },
     "confounding_variables": {
         "source_directory": "/data2/ABCD/abcd-5.0-tabular-data-extracted/core",
@@ -1964,7 +1966,7 @@ sample_configuration: ConfigurationType = {
     },
     "output": {
         "destination_directory": "TODO:",
-        "local_maxima": {"minimum_peak": 0.1, "minimum_radius": 3},
+        "local_maxima": {"minimum_negative_log10_p": 0.1, "cluster_radius": 3},
     },
 }
 
@@ -1984,4 +1986,6 @@ pd.DataFrame(csv_images, columns=column_order).to_csv(
     csv_filename, index=False, header=True
 )
 
-print(f"Don't forget to run `pre-commit run -a` for {yaml_filename}")  # noqa: T201
+print(  # noqa: T201
+    f"Done; that was fast.  Don't forget to run `pre-commit run -a` for {yaml_filename}"
+)
