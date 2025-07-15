@@ -1,3 +1,4 @@
+version: "1.0"
 tested_variables:
   source_directory: /data2/ABCD/abcd-5.0-tabular-data-extracted
   variable_default:
@@ -27,7 +28,8 @@ tested_variables:
       description: Alcohol Use Disorder something
 target_variables:
   source_directory: /data2/ABCD/gor-images/coregistered-images
-  table_of_filenames_and_metadata: /home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcdstats/src/abcdstats/abcdstats_target_variables.csv
+  desired_modality: fa
+  table_of_filenames_and_metadata: /home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcdstats/examples/example001/example001.csv
   individual_filenames_and_metadata:
     - filename: gorinput0000-modality0-sub-NDARINV5U642ALM_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
       src_subject_id: NDAR_INV5U642ALM
@@ -76,7 +78,7 @@ target_variables:
   segmentation:
     filename: /home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcd-data-exploration/prototype/segmentation_data_mrtrix.seg.nrrd
     background_index: 0
-  background:
+  template:
     filename: /data2/ABCD/gor-images/gortemplate0.nii.gz
 confounding_variables:
   source_directory: /data2/ABCD/abcd-5.0-tabular-data-extracted/core
@@ -108,5 +110,5 @@ confounding_variables:
 output:
   destination_directory: "TODO:"
   local_maxima:
-    minimum_peak: 0.1
-    minimum_radius: 3
+    minimum_negative_log10_p: 0.1
+    cluster_radius: 3

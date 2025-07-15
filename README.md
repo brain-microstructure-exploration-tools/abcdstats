@@ -148,6 +148,7 @@ Each run is configured with a YAML file and, optionally, a CSV file. The CSV
 file is described below with the `table_of_filenames_and_metadata` field below.
 The YAML configuration file is organized into four sections as follows:
 
+- **version**: Set to `1.0`.
 - **tested_variables**: This section specifies which variables are to be tested.
   Typically they are KSADS variables. The specific fields are:
   - **source_directory**: All relative paths supplied in the tested_variables
@@ -181,6 +182,8 @@ The YAML configuration file is organized into four sections as follows:
   analyzed. The specific fields are:
   - **source_directory**: All relative paths supplied in the target_variables
     section will be considered as relative to this directory.
+  - **desired_modality**: Which images in filenames_and_metadata should be
+    processed, such as `fa` or `md`.
   - **table_of_filenames_and_metadata**: the file location for the CSV file that
     lists target images to be analyzed. The columns of the CSV file are
     `filename`, `src_subject_id`, `event_name`, `modality`, and `description`,
@@ -199,15 +202,15 @@ The YAML configuration file is organized into four sections as follows:
     voxels are meaningful
     - **filename**: the location of the .nii.gz file containing the mask
     - **threshold**: the threshold intensity for determinging which voxels to
-      include
+      include. Defaults to `0.5`.
   - **segmentation**:
     - **filename**: the location of the .nii.gz file containing segmentation
       information
     - **background_index**: The numerical value of the segmentation segment that
-      represents background
-  - **background**:
-    - **filename**: the location of the .nii.gz file containing a background
-      image on which output information is overlaid.
+      represents background. Defaults to `0`.
+  - **template**:
+    - **filename**: the location of the .nii.gz file containing a template image
+      on which output information is overlaid.
 - **confounding_variables**: These are variables that may affect voxel values
   and hide the significant signal that we are hoping to detect for the tested
   variables. The specific fields are:
@@ -234,7 +237,7 @@ The YAML configuration file is organized into four sections as follows:
   analysis
   - **destination_directory**: Where to write the output
   - **local_maxima**: How do define a local maximum of statistical significance.
-    - **minimum_peak**: Show all peaks with $-\log p$ at least as large as the
-      specified value.
-    - **maximum_radius**: If peak falls into a background segment, search of up
+    - **minimum_negative_log10_p**: Show all peaks with $-\log_{10} p$ at least
+      as large as the specified value.
+    - **cluster_radius**: If peak falls into a background segment, search of up
       to this radius for a non-background label for this peak.
