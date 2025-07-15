@@ -33,7 +33,7 @@ The abcdstats Python module implements a hypothesis generation workflow for the
 data set.
 
 The module uses subject data and metadata about their images to predict voxel
-values in supplied images. Voxels that can be predicted with statistical
+values in the supplied images. Voxels that can be predicted with statistical
 significance are hypotheses about which voxels are associated with those data.
 The workflow is directed by a supplied
 [YAML](https://en.wikipedia.org/wiki/YAML) configuration file and, optionally,
@@ -110,8 +110,7 @@ In equations: $$v_i = \sum_c D_{ic} \beta_c + \epsilon_i$$ where
   of squares of these values.
 
 The regression is solved and the return value for a voxel for a tested variable
-is $$-\log_{10}(\operatorname{pvalue}(\operatorname{tstatistic}(\beta_T)))\,,$$
-where
+is $$-\log_{10}(\mathrm{pvalue}(\mathrm{tstatistic}(\beta_T)))\,,$$ where
 
 - $\beta_T$ is the coefficient for the tested variable,
 - the t-statistic is quantifying the belief that $\beta_T \ne 0$, and
@@ -143,7 +142,7 @@ pip install abcdstats[test,dev,docs]
 
 Example uses of the code can be found in the [examples](examples/) directory.
 
-## Understanding the configuration
+## The YAML configuration file
 
 Each run is configured with a YAML file and, optionally, a CSV file. The CSV
 file is described below with the `table_of_filenames_and_metadata` field below.
