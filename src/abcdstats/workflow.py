@@ -19,8 +19,9 @@ BasicValue: TypeAlias = bool | int | float | str | None
 ConfigurationValue: TypeAlias = BasicValue | list[Any]
 ConfigurationType: TypeAlias = dict[str, Union[ConfigurationValue, "ConfigurationType"]]
 
-
-# TODO: Check that there are no extra fields in our YAML file
+# TODO: Provide a YAML (and, if referred to, a CVS) linter that checks that the required
+# keys are present, extraneous keys are absent, and values are reasonable, including
+# checking that files exist.  Also, invoke it from self.run() early on.
 
 # TODO: Break up long functions if there are meaningful subfunctions
 
@@ -96,19 +97,21 @@ class Basic:
 
     def run(self) -> None:
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
+        tested_variables: dict[str, dict[str, Any]]
         tested_frame: pd.core.frame.DataFrame
         # Assembly can include conversion to one-hot.
-        tested_frame = self.get_tested_data()
+        tested_variables, tested_frame = self.get_tested_data()
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
         target_frame: pd.core.frame.DataFrame
         target_frame = self.get_target_data()
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
+        confounding_variables: dict[str, dict[str, Any]]
         confounding_frame: pd.core.frame.DataFrame
         # Assembly can include conversion to one-hot, as well as use as intercept or
         # slope random effects.
-        confounding_frame = self.get_confounding_data()
+        confounding_variables, confounding_frame = self.get_confounding_data()
 
         # Merge frames by join_keys and construct inputs useful for nilearn
         tested_array: npt.NDArray[np.float64]
@@ -123,7 +126,13 @@ class Basic:
             target_images,
             target_affine,
             confounding_array,
-        ) = self.make_arrays(tested_frame, target_frame, confounding_frame)
+        ) = self.make_arrays(
+            tested_variables,
+            tested_frame,
+            target_frame,
+            confounding_variables,
+            confounding_frame,
+        )
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
         mask_masker: nilearn.maskers.NiftiMasker | None
@@ -235,7 +244,15 @@ class Basic:
             ignore_index=True,
         )
 
-        # TODO: Keep only those images that are the `desired_modality`.
+        # Keep only those images that are the `desired_modality`.
+        m_raw: ConfigurationType | ConfigurationValue | None
+        m_raw = self.config_get(["target_variables", "desired_modality"])
+        modality: str | None
+        modality = cast(str | None, m_raw)
+        if modality:
+            # modality is neither None nor ""
+            target_frame = target_frame[target_frame["modality"] == modality]
+        # TODO: if no modality then warn (or error) the user
 
         # Complain if there are duplicate filenames
         dups: dict[str, int]
@@ -282,7 +299,9 @@ class Basic:
         affine = all_affines[0] if len(all_affines) > 0 else None
         return target_images, affine
 
-    def get_tested_data(self) -> pd.core.frame.DataFrame:
+    def get_tested_data(
+        self,
+    ) -> tuple[dict[str, dict[str, Any]], pd.core.frame.DataFrame]:
         mesg: str
 
         d_raw: ConfigurationType | ConfigurationValue | None
@@ -303,8 +322,8 @@ class Basic:
         variables: dict[str, dict[str, Any]]
         variables = copy.deepcopy(cast(dict[str, dict[str, Any]], v_raw))
 
-        # TODO: Currently fetch_variables will sometimes use one-hot for a tested
-        # variable.  Is this what we want?
+        # Note: fetch_variables will use one-hot for an unordered tested variable, which
+        # transforms a single test into multiple tests.
         df_by_var: dict[str, pd.core.frame.DataFrame]
         variables, df_by_var = self.fetch_variables(
             directory, variable_default, variables
@@ -312,9 +331,11 @@ class Basic:
         df_var: pd.core.frame.DataFrame
         df_var = self.merge_df_list(list(df_by_var.values()))
 
-        return df_var
+        return variables, df_var
 
-    def get_confounding_data(self) -> pd.core.frame.DataFrame:
+    def get_confounding_data(
+        self,
+    ) -> tuple[dict[str, dict[str, Any]], pd.core.frame.DataFrame]:
         mesg: str
 
         d_raw: ConfigurationType | ConfigurationValue | None
@@ -343,7 +364,7 @@ class Basic:
 
         df_var: pd.core.frame.DataFrame
         df_var = self.merge_df_list(list(df_by_var.values()))
-        return df_var
+        return variables, df_var
 
     def fetch_variables(
         self,
@@ -432,8 +453,6 @@ class Basic:
             is_missing = var_config["is_missing"]
             var_type: str
             var_type = var_config["type"]
-            minimum_perplexity: float
-            minimum_perplexity = var_config["minimum_perplexity"]
             df_var: pd.core.frame.DataFrame
             df_var = df_by_file[var_config["filename"]][[*self.join_keys, variable]]
 
@@ -509,45 +528,58 @@ class Basic:
                     )
                     raise ValueError(mesg)
 
-            # Convert categorical data to a multicolumn one-hot representation.
-            # TODO: If this is dropping one category, can we ensure that the "missing"
-            # category is dropped?
+            # Convert categorical data to a multicolumn one-hot representation.  Note
+            # that setting drop_first=True will drop one of the categories; and in such
+            # a case, we should drop the single, "missing" category if there is such a
+            # thing.
+
             if var_type == "unordered":
+                # Note: if an unordered variable has high perplexity but its individual
+                # categories (in one-hot representation) do not, the categories with low
+                # perplexity will ultimately be removed.
+                df_var_columns: set[str]
+                df_var_columns = set(df_var.columns)
                 df_var = pd.get_dummies(
                     df_var, dummy_na=True, columns=[variable], drop_first=False
                 )
-
-            # TODO: Should we instead check perplexity after merging tested, target,
-            # confounding.  By then we'll have downselected the number of rows.
-            df_var = self.enforce_perplexity(df_var, minimum_perplexity)
+                # Each newly created column is a new variable, so create an entry in
+                # `variables` for it by copying from its origin variable.
+                variables = {
+                    **variables,
+                    **{
+                        new_variable: {
+                            **variables[variable],
+                            "internal_name": new_variable,
+                        }
+                        for new_variable in set(df_var.columns) - df_var_columns
+                    },
+                }
 
             df_by_var[variable] = df_var
 
         return variables, df_by_var
 
     def enforce_perplexity(
-        self, df_var: pd.core.frame.DataFrame, min_perp: float
+        self, df_var: pd.core.frame.DataFrame, variables: dict[str, dict[str, Any]]
     ) -> pd.core.frame.DataFrame:
-        return (
-            df_var.drop(
-                columns=[
-                    col
-                    for col in df_var.columns
-                    if col not in self.join_keys
-                    for counts in (df_var[col].value_counts(dropna=False),)
-                    for total in (sum(counts),)
-                    for perp in (
-                        math.prod(
-                            (total / count) ** (count / total)
-                            for count in counts
-                            if count > 0
-                        ),
-                    )
-                    if perp < min_perp and not math.isclose(perp, min_perp)
-                ]
-            )
-            if min_perp > 1.0
-            else df_var
+        return df_var.drop(
+            columns=[
+                col
+                for col in df_var.columns
+                if col in variables and "minimum_perplexity" in variables[col]
+                for min_perp in [variables[col]["minimum_perplexity"]]
+                if min_perp > 1.0
+                for counts in (df_var[col].value_counts(dropna=False),)
+                for total in (sum(counts),)
+                for perp in (
+                    math.prod(
+                        (total / count) ** (count / total)
+                        for count in counts
+                        if count > 0
+                    ),
+                )
+                if perp < min_perp and not math.isclose(perp, min_perp)
+            ]
         )
 
     def handle_longitudinal(
@@ -628,8 +660,10 @@ class Basic:
 
     def make_arrays(
         self,
+        tested_variables: dict[str, dict[str, Any]],
         tested_frame: pd.core.frame.DataFrame,
         target_frame: pd.core.frame.DataFrame,
+        confound_variables: dict[str, dict[str, Any]],
         confound_frame: pd.core.frame.DataFrame,
     ) -> tuple[
         pd.core.frame.DataFrame,
@@ -649,8 +683,13 @@ class Basic:
             confound_frame, on=self.join_keys, how="inner", validate="one_to_one"
         ).merge(target_frame, on=self.join_keys, how="inner", validate="one_to_many")
 
-        # TODO: We should dropna sooner, e.g., before the perplexity test
         all_frame = all_frame.dropna()
+
+        # Now that we have determined which rows are actually going to be processed,
+        # let's remove columns that do not meet the perplexity requirement.
+        variables: dict[str, dict[str, Any]]
+        variables = {**tested_variables, **confound_variables}
+        all_frame = self.enforce_perplexity(all_frame, variables)
 
         # Recreate the input frames, respecting any selection, any replication, and any
         # reordering of rows to produce all_frame
