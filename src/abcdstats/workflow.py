@@ -915,15 +915,24 @@ class Basic:
             **other_parameters,
         )
 
-        # Compute the regression coefficients (that yielded the t-stats and p-values
-        # from permuted_ols).
-        # TODO: Use only columns of target_vars that survive masker
-        glm_ols_response: np.ndarray = np.vstack(
+        # In each case, compute the regression coefficient that yielded the t-stat and
+        # p-value reported by permuted_ols
+        bool_mask: npt.NDArray[bool]
+        bool_mask = (
+            np.asanyarray(masker.mask_img_.dataobj, dtype=bool)
+            if masker is not None
+            else np.ones(target_vars.shape[1:], dtype=bool)
+        )
+        kept_target_vars: npt.NDArray[np.float64]
+        kept_target_vars = target_vars[:, bool_mask]
+
+        glm_ols_response: np.ndarray = np.zeros(target_vars.shape, dtype=np.float64)
+        glm_ols_response[:, bool_mask] = np.vstack(
             [
                 nilearn.glm.OLSModel(
                     np.hstack((tested_var.reshape(-1, 1), confounding_vars))
                 )
-                .fit(target_vars)
+                .fit(kept_target_vars)
                 .theta[0, :]
                 for tested_var in tested_vars.T
             ]
