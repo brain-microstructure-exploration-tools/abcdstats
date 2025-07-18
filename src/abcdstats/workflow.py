@@ -452,122 +452,136 @@ class Basic:
         }
 
         # Segregate dataframes by variable.
+        by_var: dict[str, tuple[ConfigurationType, pd.core.frame.DataFrame]]
+        by_var = {
+            variable: self.handle_variable_config(variable, var_config, df_by_file)
+            for variable, var_config in variables.items()
+        }
+        variables = {
+            **variables,
+            **{
+                variable: cast(dict[str, Any], var_config)
+                for value in by_var.values()
+                for variable, var_config in value[0].items()
+            },
+        }
         df_by_var: dict[str, pd.core.frame.DataFrame]
-        df_by_var = {}
-        for variable, var_config in variables.items():
-            convert: dict[str, Any]
-            convert = var_config["convert"]
-            handle_missing: str
-            handle_missing = var_config["handle_missing"]
-            is_missing: list[Any]
-            is_missing = var_config["is_missing"]
-            var_type: str
-            var_type = var_config["type"]
-            df_var: pd.core.frame.DataFrame
-            df_var = df_by_file[var_config["filename"]][[*self.join_keys, variable]]
-
-            # Apply convert, handle_missing and is_missing
-            for src, dst in convert.items():
-                df_var[variable] = df_var[variable].replace(src, dst)
-
-            # Meaning of `handle_missing`:
-            # * "invalidate" (throw away scan if it has this field missing)
-            # * "together" (all scans marked as "missing" are put in one category that
-            #   is dedicated to all missing data)
-            # * "by_value" (for each IsMissing value, all scans with that value are put
-            #   in a category)
-            # * "separately" (each row with a missing value is its own category; e.g., a
-            #   patient with no siblings in the study)
-
-            if handle_missing != "by_value" and len(is_missing) > 1:
-                # Prior to handling the separate cases, make all missing values equal to
-                # is_missing[0]
-                for val in is_missing[1:]:
-                    df_var[variable] = df_var[variable].replace(val, is_missing[0])
-            # Process each handle_missing case
-            if handle_missing == "invalidate" and len(is_missing) > 0:
-                # Remove rows for missing values
-                df_var = df_var[df_var[variable] != is_missing[0]]
-            if handle_missing == "together" and len(is_missing) > 0:
-                if var_type == "unordered":
-                    # Nothing to do
-                    pass
-                if var_type == "ordered":
-                    # We will interpret missing as 0, but add a one-hot column so that
-                    # it can effectively be any constant.  In particular, it will not be
-                    # confounded with actual values of 0.
-                    new_missing_name: str = variable + "_missing"
-                    if new_missing_name in df_var.columns:
-                        mesg = (
-                            "Failed to get unique column name for"
-                            f" {new_missing_name!r}."
-                        )
-                        raise ValueError(mesg)
-                    df_var[new_missing_name] = (
-                        df_var[variable] == is_missing[0]
-                    ).astype(int)
-                    df_var.loc[df_var[variable] == is_missing[0], variable] = 0
-            if handle_missing == "by_value":
-                if var_type == "unordered":
-                    # There is nothing more to do.
-                    pass
-                if var_type == "ordered":
-                    mesg = (
-                        "We do not currently handle the case that"
-                        ' handle_missing == "by_value" and var_type == "ordered"'
-                    )
-                    raise ValueError(mesg)
-            if handle_missing == "separately":
-                # We want to use unused distinct values for each type of "missing".  We
-                # add unique values so the pd.get_dummies call creates a one-hot column
-                # for each missing value.
-                unused_numeric_value: int = 1 + max(
-                    [int(x) for x in df_var[variable] if isinstance(x, int | float)]
-                    + [0]
-                )
-                number_needed_values: int = (df_var[variable] == is_missing[0]).sum()
-                if var_type == "unordered":
-                    df_var.loc[df_var[variable] == is_missing[0], variable] = range(
-                        unused_numeric_value,
-                        unused_numeric_value + number_needed_values,
-                    )
-                if var_type == "ordered":
-                    mesg = (
-                        "We do not currently handle the case that"
-                        ' handle_missing == "separately" and var_type == "ordered"'
-                    )
-                    raise ValueError(mesg)
-
-            # Convert categorical data to a multicolumn one-hot representation.  Note
-            # that setting drop_first=True will drop one of the categories; and in such
-            # a case, we should drop the single, "missing" category if there is such a
-            # thing.
-
-            if var_type == "unordered":
-                # Note: if an unordered variable has high perplexity but its individual
-                # categories (in one-hot representation) do not, the categories with low
-                # perplexity will ultimately be removed.
-                df_var_columns: set[str]
-                df_var_columns = set(df_var.columns)
-                df_var = pd.get_dummies(
-                    df_var, dummy_na=True, columns=[variable], drop_first=False
-                )
-                # Each newly created column is a new variable, so create an entry in
-                # `variables` for it by copying from its origin variable.
-                variables = {
-                    **variables,
-                    **{
-                        new_variable: {
-                            **variables[variable],
-                            "internal_name": new_variable,
-                        }
-                        for new_variable in set(df_var.columns) - df_var_columns
-                    },
-                }
-
-            df_by_var[variable] = df_var
-
+        df_by_var = {variable: value[1] for variable, value in by_var.items()}
         return variables, df_by_var
+
+    def handle_variable_config(
+        self,
+        variable: str,
+        var_config: dict[str, Any],
+        df_by_file: dict[str, pd.core.frame.DataFrame],
+    ) -> tuple[ConfigurationType, pd.core.frame.DataFrame]:
+        convert: dict[str, Any]
+        convert = var_config["convert"]
+        handle_missing: str
+        handle_missing = var_config["handle_missing"]
+        is_missing: list[Any]
+        is_missing = var_config["is_missing"]
+        var_type: str
+        var_type = var_config["type"]
+        df_var: pd.core.frame.DataFrame
+        df_var = df_by_file[var_config["filename"]][[*self.join_keys, variable]]
+
+        # Apply convert, handle_missing and is_missing
+        for src, dst in convert.items():
+            df_var[variable] = df_var[variable].replace(src, dst)
+
+        # Meaning of `handle_missing`:
+        # * "invalidate" (throw away scan if it has this field missing)
+        # * "together" (all scans marked as "missing" are put in one category that is
+        #   dedicated to all missing data)
+        # * "by_value" (for each IsMissing value, all scans with that value are put in a
+        #   category)
+        # * "separately" (each row with a missing value is its own category; e.g., a
+        #   patient with no siblings in the study)
+
+        if handle_missing != "by_value" and len(is_missing) > 1:
+            # Prior to handling the separate cases, make all missing values equal to
+            # is_missing[0]
+            for val in is_missing[1:]:
+                df_var[variable] = df_var[variable].replace(val, is_missing[0])
+        # Process each handle_missing case
+        if handle_missing == "invalidate" and len(is_missing) > 0:
+            # Remove rows for missing values
+            df_var = df_var[df_var[variable] != is_missing[0]]
+        if handle_missing == "together" and len(is_missing) > 0:
+            if var_type == "unordered":
+                # Nothing to do
+                pass
+            if var_type == "ordered":
+                # We will interpret missing as 0, but add a one-hot column so that it
+                # can effectively be any constant.  In particular, it will not be
+                # confounded with actual values of 0.
+                new_missing_name: str = variable + "_missing"
+                if new_missing_name in df_var.columns:
+                    mesg = (
+                        "Failed to get unique column name for" f" {new_missing_name!r}."
+                    )
+                    raise ValueError(mesg)
+                df_var[new_missing_name] = (df_var[variable] == is_missing[0]).astype(
+                    int
+                )
+                df_var.loc[df_var[variable] == is_missing[0], variable] = 0
+        if handle_missing == "by_value":
+            if var_type == "unordered":
+                # There is nothing more to do.
+                pass
+            if var_type == "ordered":
+                mesg = (
+                    "We do not currently handle the case that"
+                    ' handle_missing == "by_value" and var_type == "ordered"'
+                )
+                raise ValueError(mesg)
+        if handle_missing == "separately":
+            # We want to use unused distinct values for each type of "missing".  We add
+            # unique values so the pd.get_dummies call creates a one-hot column for each
+            # missing value.
+            unused_numeric_value: int = 1 + max(
+                [int(x) for x in df_var[variable] if isinstance(x, int | float)] + [0]
+            )
+            number_needed_values: int = (df_var[variable] == is_missing[0]).sum()
+            if var_type == "unordered":
+                df_var.loc[df_var[variable] == is_missing[0], variable] = range(
+                    unused_numeric_value,
+                    unused_numeric_value + number_needed_values,
+                )
+            if var_type == "ordered":
+                mesg = (
+                    "We do not currently handle the case that"
+                    ' handle_missing == "separately" and var_type == "ordered"'
+                )
+                raise ValueError(mesg)
+
+        # Convert categorical data to a multicolumn one-hot representation.  Note that
+        # setting drop_first=True will drop one of the categories; and in such a case,
+        # we should drop the single, "missing" category if there is such a thing.
+
+        if var_type == "unordered":
+            # Note: if an unordered variable has high perplexity but its individual
+            # categories (in one-hot representation) do not, the categories with low
+            # perplexity will ultimately be removed.
+            df_var_columns: set[str]
+            df_var_columns = set(df_var.columns)
+            df_var = pd.get_dummies(
+                df_var, dummy_na=True, columns=[variable], drop_first=False
+            )
+
+        # Each newly created column, if any, is a new variable, so prepare an entry for
+        # `variables` by copying from its origin variable.
+        variables: ConfigurationType
+        variables = {
+            new_variable: {
+                **var_config,
+                "internal_name": new_variable,
+            }
+            for new_variable in set(df_var.columns) - df_var_columns
+        }
+
+        return variables, df_var
 
     def enforce_perplexity(
         self, df_var: pd.core.frame.DataFrame, variables: dict[str, dict[str, Any]]
