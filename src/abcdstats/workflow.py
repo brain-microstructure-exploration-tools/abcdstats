@@ -244,15 +244,25 @@ class Basic:
             ignore_index=True,
         )
 
+        if len(target_frame) == 0:
+            mesg = "No target images were supplied, via table or individuals"
+            raise ValueError(mesg)
+
         # Keep only those images that are the `desired_modality`.
         m_raw: ConfigurationType | ConfigurationValue | None
         m_raw = self.config_get(["target_variables", "desired_modality"])
-        modality: str | None
-        modality = cast(str | None, m_raw)
-        if modality:
-            # modality is neither None nor ""
-            target_frame = target_frame[target_frame["modality"] == modality]
-        # TODO: if no modality then warn (or error) the user
+        if m_raw is None:
+            mesg = (
+                "You must supply a target_variables.desired_modality in the YAML file,"
+                ' often "fa" or "md"'
+            )
+            raise ValueError(mesg)
+        modality: str = cast(str, m_raw)
+        target_frame = target_frame[target_frame["modality"] == modality]
+
+        if len(target_frame) == 0:
+            mesg = f"No target images of modality {modality!r} were supplied"
+            raise ValueError(mesg)
 
         # Complain if there are duplicate filenames
         dups: dict[str, int]
@@ -848,13 +858,23 @@ class Basic:
     ) -> tuple[dict[str, npt.NDArray[np.float64]], npt.NDArray[np.float64]]:
         mesg: str
         """
+        TODO: Maybe we'll need this later:
+          number_values: int
+          number_values = sum([math.prod(img.shape) for img in source_images_voxels])
+          max_values_per_iteration: int = 1_000_000_000
+          number_iterations = math.ceil(number_values / max_values_per_iteration)
+        """
+
+        target_vars: npt.NDArray[np.float64]
+        # Avoid img.get_fdata() so that we have just one copy of the voxel data
+        target_vars = np.stack([np.asanyarray(img.dataobj) for img in target_images])
+
+        """
         Shapes of the numpy arrays are
           tested_vars.shape == (number_images, number_ksads)
           target_vars.shape == (number_images, *voxels.shape)
           confounding_vars.shape == (number_images, number_confounding_vars)
         """
-        target_vars: npt.NDArray[np.float64]
-        target_vars = np.stack([img.get_fdata() for img in target_images])
 
         # TODO: If masker is correct except for the number of channels, can we recover?
         if masker is not None and target_vars.shape[1:] != masker.mask_img_.shape:
@@ -864,8 +884,8 @@ class Basic:
             )
             raise ValueError(mesg)
 
-        perm_ols_spec: dict[str, type]  # Each can also be `None`
-        perm_ols_spec = {
+        # Note that each can also be `None`
+        perm_ols_spec: dict[str, type] = {
             "model_intercept": bool,
             "n_perm": int,
             "two_sided_test": bool,
@@ -879,31 +899,37 @@ class Basic:
 
         # Call nilearn.mass_univariate.permuted_ols.
         # TODO: Verify that masker is doing what we hope it is doing
+        other_parameters: dict[str, Any] = {
+            k: v
+            for k, v in cast(
+                dict[str, Any], self.config_get(["output", "permuted_ols"])
+            ).items()
+            if k in perm_ols_spec
+        }
         permuted_ols_response: dict[str, npt.NDArray[np.float64]]
         permuted_ols_response = nilearn.mass_univariate.permuted_ols(
             tested_vars=tested_vars,  # ksads
             target_vars=target_vars,  # voxels
             confounding_vars=confounding_vars,  # e.g., interview_age
-            **{
-                k: v
-                for k, v in cast(
-                    dict[str, Any], self.config_get(["output", "permuted_ols"])
-                ).items()
-                if k in perm_ols_spec
-            },
+            masker=masker,
+            **other_parameters,
         )
 
-        # TODO: Write glm_ols part
+        # Compute the regression coefficients (that yielded the t-stats and p-values
+        # from permuted_ols).
+        # TODO: Use only columns of target_vars that survive masker
+        glm_ols_response: np.ndarray = np.vstack(
+            [
+                nilearn.glm.OLSModel(
+                    np.hstack((tested_var.reshape(-1, 1), confounding_vars))
+                )
+                .fit(target_vars)
+                .theta[0, :]
+                for tested_var in tested_vars.T
+            ]
+        )
 
-        """
-        TODO: Maybe we'll need this later:
-          number_values: int
-          number_values = sum([math.prod(img.shape) for img in source_images_voxels])
-          max_values_per_iteration: int = 1_000_000_000
-          number_iterations = math.ceil(number_values / max_values_per_iteration)
-        """
-
-        return permuted_ols_response, np.zeros((), dtype=np.float64)
+        return permuted_ols_response, glm_ols_response
 
     def compute_local_maxima(
         self,
