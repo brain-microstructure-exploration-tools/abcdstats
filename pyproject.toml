@@ -36,6 +36,7 @@ dependencies = [
   "pandas",
   "pynrrd",
   "PyYAML",
+  "scipy",
   "typing_extensions",
 ]
 

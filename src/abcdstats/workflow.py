@@ -57,7 +57,11 @@ class Basic:
                 "variable_default": {**variable_default, "longitudinal": ["intercept"]}
             },
             "output": {
-                "local_maxima": {"minimum_negative_log10_p": 0.1, "cluster_radius": 3},
+                "local_maxima": {
+                    "minimum_negative_log10_p": 0.1,
+                    "cluster_radius": 3,
+                    "label_threshold": 0.1,
+                },
                 "permuted_ols": {
                     "model_intercept": True,
                     "n_perm": 10000,
@@ -146,14 +150,20 @@ class Basic:
         template_voxels, template_affine = self.get_template()
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
-        segmentation_voxels: npt.NDArray[np.float64 | np.int_] | None
+        segmentation_voxels: npt.NDArray[np.float64 | int] | None
         segmentation_affine: npt.NDArray[np.float64] | None
         segmentation_header: collections.OrderedDict[str, Any] | None
+        segmentation_map: dict[int, str] | None
+        background_index: int | None
         # Can be a labelmap (all-or-none segmentation) or a cloud that gives
         # probabilities for each segment.
-        segmentation_voxels, segmentation_affine, segmentation_header = (
-            self.get_brain_segmentation()
-        )
+        (
+            segmentation_voxels,
+            segmentation_affine,
+            segmentation_header,
+            segmentation_map,
+            background_index,
+        ) = self.get_brain_segmentation()
 
         self.allclose_affines(
             [target_affine, mask_affine, template_affine, segmentation_affine],
@@ -176,7 +186,12 @@ class Basic:
         # For each tested variable, for each local maximum, output coordinates and a
         # description
         local_maxima_description: list[list[tuple[list[int], str]]]
-        local_maxima_description = self.compute_local_maxima(logp_max_t=logp_max_t)  # noqa: F841
+        local_maxima_description = self.compute_local_maxima(  # noqa: F841
+            logp_max_t=logp_max_t,
+            segmentation_voxels=segmentation_voxels,
+            segmentation_map=segmentation_map,
+            background_index=background_index,
+        )
         # TODO: Invoke matplotlib
 
     def get_target_data(self) -> pd.core.frame.DataFrame:
@@ -547,8 +562,7 @@ class Basic:
             number_needed_values: int = (df_var[variable] == is_missing[0]).sum()
             if var_type == "unordered":
                 df_var.loc[df_var[variable] == is_missing[0], variable] = range(
-                    unused_numeric_value,
-                    unused_numeric_value + number_needed_values,
+                    unused_numeric_value, unused_numeric_value + number_needed_values
                 )
             if var_type == "ordered":
                 mesg = (
@@ -575,10 +589,7 @@ class Basic:
         # `variables` by copying from its origin variable.
         variables: ConfigurationType
         variables = {
-            new_variable: {
-                **var_config,
-                "internal_name": new_variable,
-            }
+            new_variable: {**var_config, "internal_name": new_variable}
             for new_variable in set(df_var.columns) - df_var_columns
         }
 
@@ -814,9 +825,11 @@ class Basic:
     def get_brain_segmentation(
         self,
     ) -> tuple[
-        npt.NDArray[np.float64 | np.int_] | None,
+        npt.NDArray[np.float64 | int] | None,
         npt.NDArray[np.float64] | None,
         collections.OrderedDict[str, Any] | None,
+        dict[int, str] | None,
+        int | None,
     ]:
         d_raw: ConfigurationType | ConfigurationValue | None
         d_raw = self.config_get(["target_variables", "source_directory"])
@@ -830,15 +843,30 @@ class Basic:
         if directory is not None and filename is not None:
             filename = directory / filename
 
-        voxels: npt.NDArray[np.float64 | np.int_] | None = None
+        b_raw: ConfigurationType | ConfigurationValue | None
+        b_raw = self.config_get(
+            ["target_variables", "segmentation", "background_index"]
+        )
+        background_index: int | None
+        background_index = cast(int, b_raw) if b_raw is not None else None
+
+        voxels: npt.NDArray[np.float64 | int] | None = None
         header: collections.OrderedDict[str, Any] | None = None
         affine: npt.NDArray[np.float64] | None = None
+        segmentation_map: dict[int, str] | None = None
         if filename is not None:
             voxels, header = nrrd.read(filename)  # shape = (71, 140, 140, 140)
             header = cast(collections.OrderedDict[str, Any], header)
             affine = self.construct_affine(header)
+            segmentation_map = {
+                int(value): str(header[name_key])
+                for key, value in header.items()
+                if key.endswith("_LabelValue")
+                for name_key in [f"{key[:-len('_LabelValue')]}_Name"]
+                if name_key in header
+            }
 
-        return voxels, affine, header
+        return voxels, affine, header, segmentation_map, background_index
 
     def construct_affine(
         self, header: collections.OrderedDict[str, Any]
@@ -941,7 +969,7 @@ class Basic:
         kept_target_vars: npt.NDArray[np.float64]
         kept_target_vars = target_vars[:, bool_mask]
 
-        glm_ols_response: np.ndarray = np.zeros(target_vars.shape, dtype=np.float64)
+        glm_ols_response: npt.NDArray = np.zeros(target_vars.shape, dtype=np.float64)
         glm_ols_response[:, bool_mask] = np.vstack(
             [
                 nilearn.glm.OLSModel(
@@ -959,31 +987,13 @@ class Basic:
         self,
         *,
         logp_max_t: npt.NDArray[np.float64],
+        segmentation_voxels: npt.NDArray[np.float64 | int] | None,
+        segmentation_map: dict[int, str] | None,
+        background_index: int | None,
     ) -> list[list[tuple[list[int], str]]]:
-        mesg: str
-        m_raw: ConfigurationType | ConfigurationValue | None
-        m_raw = self.config_get(["output", "local_maxima", "minimum_negative_log10_p"])
-        if m_raw is None:
-            mesg = "Must supply output.local_maxima.minimum_negative_log10_p for abcdstats.workflow.Basic.compute_local_maxima"
-            raise ValueError(mesg)
-        minimum: float
-        minimum = cast(float, m_raw)
-
-        r_raw: ConfigurationType | ConfigurationValue | None
-        r_raw = self.config_get(["output", "local_maxima", "cluster_radius"])
-        if r_raw is None:
-            mesg = "Must supply output.local_maxima.cluster_radius for abcdstats.workflow.Basic.compute_local_maxima"
-            raise ValueError(mesg)
-        radius: int
-        radius = cast(int, r_raw)
-
-        shapex: int
-        shapey: int
-        shapez: int
-        shapex, shapey, shapez = logp_max_t.shape[1:]
         return [
             self.compute_local_maxima_for_variable(
-                variable, minimum, radius, shapex, shapey, shapez
+                variable, segmentation_voxels, segmentation_map, background_index
             )
             for variable in logp_max_t
         ]
@@ -991,12 +1001,38 @@ class Basic:
     def compute_local_maxima_for_variable(
         self,
         variable: npt.NDArray,
-        minimum: float,
-        radius: int,
-        shapex: int,
-        shapey: int,
-        shapez: int,
+        segmentation_voxels: npt.NDArray[np.float64 | int] | None,
+        segmentation_map: dict[int, str] | None,
+        background_index: int | None,
     ) -> list[tuple[list[int], str]]:
+        m_raw: ConfigurationType | ConfigurationValue | None
+        m_raw = self.config_get(["output", "local_maxima", "minimum_negative_log10_p"])
+        r_raw: ConfigurationType | ConfigurationValue | None
+        r_raw = self.config_get(["output", "local_maxima", "cluster_radius"])
+
+        mesgs: list[str]
+        mesgs = [
+            *(["minimum_negative_log10_p"] if m_raw is None else []),
+            *(["cluster_radius"] if r_raw is None else []),
+        ]
+        if mesgs:
+            mesg: str = (
+                "Must supply output.local_maxima."
+                + " and output.local_maxima.".join(mesgs)
+                + "for abcdstats.workflow.Basic.compute_local_maxima"
+            )
+            raise ValueError(mesg)
+
+        minimum: float
+        minimum = cast(float, m_raw)
+        radius: int
+        radius = cast(int, r_raw)
+
+        shapex: int
+        shapey: int
+        shapez: int
+        shapex, shapey, shapez = variable.shape
+
         maxima: list[list[int]]
         maxima = [
             [x, y, z]
@@ -1035,7 +1071,133 @@ class Basic:
             if variable[x, y, z] == np.max(neighborhood)
         ]
         maxima.sort(key=lambda xyz: -variable[xyz[0], xyz[1], xyz[2]])
-        return [(c, "TODO:") for c in maxima]
+        return [
+            (
+                xyz,
+                self.describe_maximum(
+                    xyz,
+                    variable,
+                    segmentation_voxels,
+                    segmentation_map,
+                    background_index,
+                ),
+            )
+            for xyz in maxima
+        ]
+
+    def describe_maximum(
+        self,
+        xyz: list[int],
+        log10_pvalue: npt.NDArray,
+        segmentation_voxels: npt.NDArray[np.float64 | int] | None,
+        segmentation_map: dict[int, str] | None,
+        background_index: int | None,
+    ) -> str:
+        return (
+            "No description"
+            if segmentation_voxels is None
+            or segmentation_map is None
+            or background_index is None
+            else (
+                self.describe_maximum_using_partition(
+                    xyz,
+                    log10_pvalue,
+                    segmentation_voxels,
+                    segmentation_map,
+                    background_index,
+                )
+                if len(segmentation_voxels.shape) == 3
+                else (
+                    self.describe_maximum_using_cloud(
+                        xyz,
+                        log10_pvalue,
+                        segmentation_voxels,
+                        segmentation_map,
+                        background_index,
+                    )
+                    if len(segmentation_voxels.shape) == 4
+                    else "segmentation_voxels shape error"
+                )
+            )
+            if len(segmentation_voxels.shape) == 4
+            else "segmentation_voxels shape error"
+        )
+
+    def describe_maximum_using_partition(
+        self,
+        xyz: list[int],
+        log10_pvalue: npt.NDArray,
+        segmentation_voxels: npt.NDArray[int],
+        segmentation_map: dict[int, str],
+        background_index: int,
+    ) -> str:
+        # `radius` describes how far to look for a label.  It is distinct from the
+        # cluster_radius that is used to define isolation of a peak.
+        radius: int = 3
+        x, y, z = xyz
+        shapex, shapey, shapez = log10_pvalue.shape
+        region_index: int = segmentation_voxels[x, y, z]
+        where: str = "in"
+        if region_index == background_index:
+            # Instead of background, take the most common nearby brain region
+            for distance in range(1, radius + 1):
+                neighborhood: npt.NDArray = segmentation_voxels[
+                    max(0, x - distance) : min(shapex, x + distance + 1),
+                    max(0, y - distance) : min(shapey, y + distance + 1),
+                    max(0, z - distance) : min(shapez, z + distance + 1),
+                ].reshape(-1)
+                neighborhood = neighborhood[neighborhood != background_index].astype(
+                    int
+                )
+                if neighborhood.size:
+                    values, counts = np.unique(neighborhood, return_counts=True)
+                    # Ties go to the lower integer; oh well
+                    region_index = values[np.argmax(counts)]
+                    where = "near"
+                    break
+        return (
+            f"-log_10 p(t-stat)={round(1000.0 * log10_pvalue[x, y, z]) / 1000.0} at"
+            f" ({x}, {y}, {z}) {where} region {segmentation_map[region_index]}"
+            f" ({region_index})"
+        )
+
+    def describe_maximum_using_cloud(
+        self,
+        xyz: list[int],
+        log10_pvalue: npt.NDArray,
+        segmentation_voxels: npt.NDArray[np.float64],
+        segmentation_map: dict[int, str],
+        background_index: int,
+    ) -> str:
+        mesg: str
+        t_raw: ConfigurationType | ConfigurationValue | None
+        t_raw = self.config_get(["output", "local_maxima", "label_threshold"])
+        if t_raw is None:
+            mesg = "output.local_maxima.label_threshold must be supplied"
+            raise ValueError(mesg)
+        threshold: float
+        threshold = cast(float, t_raw)
+
+        x, y, z = xyz
+        shapex, shapey, shapez = log10_pvalue.shape
+        cloud_here: npt.NDArray = segmentation_voxels[:, x, y, z]
+        argsort: npt.NDArray = np.argsort(cloud_here)[::-1]
+        # Show those that exceed threshold; showing at least 2 regions
+        description: list[str]
+        description = [
+            "Found local maximum -log_10 p(t-stat)="
+            f"{round(1000.0 * log10_pvalue[x, y, z]) / 1000.0} at ({x}, {y}, {z})"
+            " in regions:",
+            *[
+                f"    {segmentation_map[region]} ({region}) confidence = "
+                f"{round(100000.0 * cloud_here[r]) / 1000}%"
+                for i, r in enumerate(argsort)
+                if i < 2 or cloud_here[r] >= threshold
+                for region in [r + background_index + 1]
+            ],
+        ]
+
+        return "\n".join(description)
 
     def config_get(
         self, list_of_keys: list[str]
@@ -1089,10 +1251,7 @@ class Basic:
         }
         schema = {
             "keys": {
-                "version": {
-                    "required": True,
-                    "values": {"1.0"},
-                },
+                "version": {"required": True, "values": {"1.0"}},
                 "tested_variables": {
                     "required": True,
                     "keys": {
@@ -1136,9 +1295,7 @@ class Basic:
                         },
                         "template": {
                             "required": False,
-                            "keys": {
-                                "filename": {"required": True},
-                            },
+                            "keys": {"filename": {"required": True}},
                         },
                     },
                 },
@@ -1166,7 +1323,7 @@ class Basic:
                         },
                     },
                 },
-            },
+            }
         }
         return self.recursive_check_fields([], self.config, schema)
 
