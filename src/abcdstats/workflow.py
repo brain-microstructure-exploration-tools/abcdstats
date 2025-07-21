@@ -13,6 +13,7 @@ import nrrd  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import numpy as np  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import numpy.typing as npt  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import pandas as pd  # type: ignore[import-not-found,import-untyped,unused-ignore]
+import scipy.signal  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import yaml  # type: ignore[import-not-found,import-untyped,unused-ignore]
 
 BasicValue: TypeAlias = bool | int | float | str | None
@@ -957,10 +958,84 @@ class Basic:
     def compute_local_maxima(
         self,
         *,
-        logp_max_t: npt.NDArray[np.float64],  # noqa: ARG002
+        logp_max_t: npt.NDArray[np.float64],
     ) -> list[list[tuple[list[int], str]]]:
-        # TODO: Write me
-        return []
+        mesg: str
+        m_raw: ConfigurationType | ConfigurationValue | None
+        m_raw = self.config_get(["output", "local_maxima", "minimum_negative_log10_p"])
+        if m_raw is None:
+            mesg = "Must supply output.local_maxima.minimum_negative_log10_p for abcdstats.workflow.Basic.compute_local_maxima"
+            raise ValueError(mesg)
+        minimum: float
+        minimum = cast(float, m_raw)
+
+        r_raw: ConfigurationType | ConfigurationValue | None
+        r_raw = self.config_get(["output", "local_maxima", "cluster_radius"])
+        if r_raw is None:
+            mesg = "Must supply output.local_maxima.cluster_radius for abcdstats.workflow.Basic.compute_local_maxima"
+            raise ValueError(mesg)
+        radius: int
+        radius = cast(int, r_raw)
+
+        shapex: int
+        shapey: int
+        shapez: int
+        shapex, shapey, shapez = logp_max_t.shape[1:]
+        return [
+            self.compute_local_maxima_for_variable(
+                variable, minimum, radius, shapex, shapey, shapez
+            )
+            for variable in logp_max_t
+        ]
+
+    def compute_local_maxima_for_variable(
+        self,
+        variable: npt.NDArray,
+        minimum: float,
+        radius: int,
+        shapex: int,
+        shapey: int,
+        shapez: int,
+    ) -> list[tuple[list[int], str]]:
+        maxima: list[list[int]]
+        maxima = [
+            [x, y, z]
+            for x, y, z in {
+                (x, y, int(z))
+                for x in range(shapex)
+                for y in range(shapey)
+                for z in scipy.signal.argrelextrema(
+                    variable[x, y, :], np.greater_equal, order=radius
+                )[0]
+            }
+            | {
+                (x, int(y), z)
+                for x in range(shapex)
+                for z in range(shapez)
+                for y in scipy.signal.argrelextrema(
+                    variable[x, :, z], np.greater_equal, order=radius
+                )[0]
+            }
+            | {
+                (int(x), y, z)
+                for y in range(shapey)
+                for z in range(shapez)
+                for x in scipy.signal.argrelextrema(
+                    variable[:, y, z], np.greater_equal, order=radius
+                )[0]
+            }
+            if variable[x, y, z] >= minimum
+            for neighborhood in [
+                variable[
+                    max(0, x - radius) : min(shapex, x + radius + 1),
+                    max(0, y - radius) : min(shapey, y + radius + 1),
+                    max(0, z - radius) : min(shapez, z + radius + 1),
+                ]
+            ]
+            if variable[x, y, z] == np.max(neighborhood)
+        ]
+        maxima.sort(key=lambda xyz: -variable[xyz[0], xyz[1], xyz[2]])
+        return [(c, "TODO:") for c in maxima]
 
     def config_get(
         self, list_of_keys: list[str]
@@ -986,3 +1061,153 @@ class Basic:
         else:
             response = pd.core.frame.DataFrame()
         return response
+
+    def lint(self) -> bool:
+        b1: bool = self.check_fields()
+        b2: bool = self.check_files()
+        return b1 and b2
+
+    def check_fields(self) -> bool:
+        # If schema["required"] == True then verify that key is present
+        # If schema["keys"] or schema["default_keys"] is present then recurse:
+        #   if key in schema["keys"] then recurse there
+        #   else if "default_keys" in schema then recurse there
+        #   else key is unknown.
+        tested_keys = {
+            "filename": {"required": True},
+            "convert": {"required": False},
+            "handle_missing": {"required": False, "values": {"TODO:"}},
+            "is_missing": {"required": False},
+            "type": {"required": True, "values": {"TODO:"}},
+            "description": {"required": False},
+            "internal_name": {"required": False},
+        }
+        confound_keys = {
+            **tested_keys,
+            "longitudinal": {"required": True, "values": {"TODO:"}},
+            "minimum_perplexity": {"required": False},
+        }
+        schema = {
+            "keys": {
+                "version": {
+                    "required": True,
+                    "values": {"1.0"},
+                },
+                "tested_variables": {
+                    "required": True,
+                    "keys": {
+                        "source_directory": {"required": False},
+                        "variable_default": {"required": False, "keys": tested_keys},
+                        "variable": {
+                            "required": True,
+                            "default_keys": {"keys": tested_keys},
+                        },
+                    },
+                },
+                "target_variables": {
+                    "required": True,
+                    "keys": {
+                        "source_directory": {"required": False},
+                        "desired_modality": {"required": True, "values": {"fa", "md"}},
+                        "table_of_filenames_and_metadata": {"required": False},
+                        "individual_filenames_and_metadata": {
+                            "required": False,
+                            "keys": {
+                                "filename": {"required": True},
+                                "src_subject_id": {"required": True},
+                                "event_name": {"required": True, "values": {"TODO:"}},
+                                "modality": {"required": True, "values": {"fa", "md"}},
+                                "description": {"required": False},
+                            },
+                        },
+                        "mask": {
+                            "required": False,
+                            "keys": {
+                                "filename": {"required": True},
+                                "threshold": {"required": False},
+                            },
+                        },
+                        "segmentation": {
+                            "required": False,
+                            "keys": {
+                                "filename": {"required": True},
+                                "background": {"required": False},
+                            },
+                        },
+                        "template": {
+                            "required": False,
+                            "keys": {
+                                "filename": {"required": True},
+                            },
+                        },
+                    },
+                },
+                "confounding_variables": {
+                    "required": True,
+                    "keys": {
+                        "source_directory": {"required": False},
+                        "variable_default": {"required": False, "keys": confound_keys},
+                        "variable": {
+                            "required": True,
+                            "default_keys": {"keys": confound_keys},
+                        },
+                    },
+                },
+                "output": {
+                    "required": True,
+                    "keys": {
+                        "destination_directory": {"required": True},
+                        "local_maxima": {
+                            "required": False,
+                            "keys": {
+                                "minimum_negative_log10_p": {"required": False},
+                                "cluster_radius": {"required": False},
+                            },
+                        },
+                    },
+                },
+            },
+        }
+        return self.recursive_check_fields([], self.config, schema)
+
+    def recursive_check_fields(
+        self,
+        context: list[str],  # noqa: ARG002
+        actual: Any,  # noqa: ARG002
+        allowed: Any,  # noqa: ARG002
+    ) -> bool:
+        # Check against allowed["keys"] and allowed["default_keys"].
+        # If appropriate, for each key check allowed["keys"][key]["required"] and then recurse to allowed["keys"][key].
+        # (Or use "default_keys" if present but key not in "keys".)
+        # TODO: Write me.  (Below might be gibberish.)
+
+        """
+        good: bool = True
+        if isinstance(allowed, dict):
+            if isinstance(actual, dict):
+                for key in actual:
+                    if key not in allowed:
+                        print(".".join([*context, key]) + " not permitted as a key")
+                        good = False
+                    good &= self.check_fields(
+                        [*context, key], actual[key], allowed[key]
+                    )
+        else:
+            good = False
+        return good
+
+        if actual is None and allowed is None:
+            return check_fields
+        # When both actual_fields and allowed_fields are dictionaries then each key of
+        # the former must be in the latter (or the latter must have a `None` key) and
+        # one should recurse on the corresponding values.
+
+        # If allowed_fields is not a dictionary then return True.
+
+        # If allowed_fields is a dictionary but actual_fields is not then return False.
+        """
+        return False
+
+    def check_files(self) -> bool:
+        # TODO: Write me
+        return True
