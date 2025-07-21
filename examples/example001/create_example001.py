@@ -1966,7 +1966,11 @@ sample_configuration: ConfigurationType = {
     },
     "output": {
         "destination_directory": "TODO:",
-        "local_maxima": {"minimum_negative_log10_p": 0.1, "cluster_radius": 3},
+        "local_maxima": {
+            "minimum_negative_log10_p": 0.1,
+            "cluster_radius": 3,
+            "label_threshold": 0.1,
+        },
     },
 }
 
