@@ -1107,20 +1107,16 @@ class Basic:
                     background_index,
                 )
                 if len(segmentation_voxels.shape) == 3
-                else (
-                    self.describe_maximum_using_cloud(
-                        xyz,
-                        log10_pvalue,
-                        segmentation_voxels,
-                        segmentation_map,
-                        background_index,
-                    )
-                    if len(segmentation_voxels.shape) == 4
-                    else "segmentation_voxels shape error"
+                else self.describe_maximum_using_cloud(
+                    xyz,
+                    log10_pvalue,
+                    segmentation_voxels,
+                    segmentation_map,
+                    background_index,
                 )
+                if len(segmentation_voxels.shape) == 4
+                else "segmentation_voxels shape error"
             )
-            if len(segmentation_voxels.shape) == 4
-            else "segmentation_voxels shape error"
         )
 
     def describe_maximum_using_partition(
@@ -1224,12 +1220,12 @@ class Basic:
             response = pd.core.frame.DataFrame()
         return response
 
-    def lint(self) -> bool:
-        b1: bool = self.check_fields()
-        b2: bool = self.check_files()
-        return b1 and b2
+    def lint(self) -> str:
+        fields: list[str] = self.check_fields()
+        files: list[str] = self.check_files()
+        return "\n".join([*fields, *files])
 
-    def check_fields(self) -> bool:
+    def check_fields(self) -> list[str]:
         # If schema["required"] == True then verify that key is present
         # If schema["keys"] or schema["default_keys"] is present then recurse:
         #   if key in schema["keys"] then recurse there
@@ -1328,43 +1324,47 @@ class Basic:
         return self.recursive_check_fields([], self.config, schema)
 
     def recursive_check_fields(
-        self,
-        context: list[str],  # noqa: ARG002
-        actual: Any,  # noqa: ARG002
-        allowed: Any,  # noqa: ARG002
-    ) -> bool:
-        # Check against allowed["keys"] and allowed["default_keys"].
-        # If appropriate, for each key check allowed["keys"][key]["required"] and then recurse to allowed["keys"][key].
-        # (Or use "default_keys" if present but key not in "keys".)
-        # TODO: Write me.  (Below might be gibberish.)
+        self, context: list[str], config: Any, schema: Any
+    ) -> list[str]:
+        # A `schema` is a dict with up to three keys: "required", "keys", and
+        # "default_keys".  The value associated with the "required" key is a `bool`.
+        # The value associated with the "keys" key is a `dict[str, schema]`.  The value
+        # associated with the "default_keys" key is a `schema`.  "Required" will already
+        # have been checked at the top-level, but we need to check it just before
+        # recursing to a schema from "keys" or "default_keys".  The return value is a
+        # list of failed checks.
 
-        """
-        good: bool = True
-        if isinstance(allowed, dict):
-            if isinstance(actual, dict):
-                for key in actual:
-                    if key not in allowed:
-                        print(".".join([*context, key]) + " not permitted as a key")
-                        good = False
-                    good &= self.check_fields(
-                        [*context, key], actual[key], allowed[key]
+        return (
+            []
+            if schema is None
+            else [
+                *[
+                    mesg
+                    for key, value in config.items()
+                    for mesg in (
+                        self.recursive_check_fields(
+                            [*context, key], value, schema["keys"][key].get("schema")
+                        )
+                        if key in schema.get("keys", {})
+                        else (
+                            self.recursive_check_fields(
+                                [*context, key],
+                                value,
+                                schema["default_keys"].get("schema"),
+                            )
+                            if "default_keys" in schema
+                            else [f"Unrecognized key {key!r} in YAML file"]
+                        )
                     )
-        else:
-            good = False
-        return good
+                ],
+                *[
+                    f"Required key {key!r} not found in YAML file"
+                    for key, value in schema.items()
+                    if value.get("required", False) and key not in config
+                ],
+            ]
+        )
 
-        if actual is None and allowed is None:
-            return check_fields
-        # When both actual_fields and allowed_fields are dictionaries then each key of
-        # the former must be in the latter (or the latter must have a `None` key) and
-        # one should recurse on the corresponding values.
-
-        # If allowed_fields is not a dictionary then return True.
-
-        # If allowed_fields is a dictionary but actual_fields is not then return False.
-        """
-        return False
-
-    def check_files(self) -> bool:
+    def check_files(self) -> list[str]:
         # TODO: Write me
-        return True
+        return []
