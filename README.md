@@ -74,8 +74,8 @@ The output includes:
 
 Mathematically speaking, for each tested variable separately, we process each
 voxel separately. We use a
-[multlevel model](https://en.wikipedia.org/wiki/Multilevel_model) to predict the
-voxel's intensity as a function of the tested variable and the confounding
+[multilevel model](https://en.wikipedia.org/wiki/Multilevel_model) to predict
+the voxel's intensity as a function of the tested variable and the confounding
 variables. This is a regression model with a non-zero constant term permitted.
 When a tested variable or a confounding variable is an ordered variable, it is
 used directly. If it is an unordered variable, (such as a site id or other
@@ -159,7 +159,7 @@ The YAML configuration file is organized into four sections as follows:
   - **variable**: Each entry in this section is the name of a tested variable
     (such as "ksads_1_187_t"). Associated with it is information on how to treat
     the variable.
-    - **filename**: ABCD csv file that contains the data for the tested variable
+    - **filename**: ABCD CSV file that contains the data for the tested variable
     - **convert**: A dictionary that explains how to convert the tested
       variable's data. Each (key, value) pair of the dictionary specifies what
       the datum (the key) is to be converted to (the value).
@@ -201,7 +201,7 @@ The YAML configuration file is organized into four sections as follows:
   - **mask**: describes mask (e.g., white matter mask) that specifies which
     voxels are meaningful
     - **filename**: the location of the .nii.gz file containing the mask
-    - **threshold**: the threshold intensity for determinging which voxels to
+    - **threshold**: the threshold intensity for determining which voxels to
       include. Defaults to `0.5`.
   - **segmentation**:
     - **filename**: the location of the .nii.gz file containing segmentation
@@ -230,9 +230,11 @@ The YAML configuration file is organized into four sections as follows:
       variable is equally likely to be any of $N$ possibilities, its perplexity
       is $N$.)
     - **longitudinal**: This describes whether the confounding variable should
-      be used as an intercep and/or slope random effect. Can be any one or more
+      be used as an intercept and/or slope random effect. Can be any one or more
       of `time`, `intercept`, or `slope`; see the [Methods](#Methods) section
-      above.
+      above. Note that `time` will not be a confounding variable itself unless
+      it is also `intercept` or, if it is also `slope` then its square will be
+      included.
 - **output**: This specifies how to post-process and save the results of the
   analysis
   - **destination_directory**: Where to write the output
