@@ -624,6 +624,7 @@ class Basic:
         df_by_var: dict[str, pd.core.frame.DataFrame],
     ) -> dict[str, pd.core.frame.DataFrame]:
         kinds: list[str] = ["time", "intercept", "slope"]
+        mesg: str
 
         has: dict[str, list[str]]
         has = {
@@ -654,7 +655,7 @@ class Basic:
                 ' confounding variables were supplied as "time".'
             )
         if mesgs:
-            mesg: str = "\n".join(mesgs)
+            mesg = "\n".join(mesgs)
             raise ValueError(mesg)
 
         if len(has["time"]) > 0:
@@ -669,13 +670,22 @@ class Basic:
                 .rename(columns={has["time"][0]: new_time_name})
             )
 
+            df_intercept_by_var: dict[str, pd.core.frame.DataFrame]
+            df_intercept_by_var = {v: df_by_var[v] for v in has["intercept"]}
+
             slope: str = "_slope"
-            if any(
-                v + slope in df.columns
+            bad_names: set[str]
+            bad_names = {
+                v + slope
                 for v in has["slope"]
                 for df in df_by_var.values()
-            ):
-                mesg = "Failed to get unique column name for slope variable"
+                if v + slope in df.columns
+            }
+            if bad_names:
+                mesg = (
+                    "Failed to get unique column name for slope "
+                    f"variable{'s' if len(bad_names) > 1 else ' '} {bad_names!r}"
+                )
                 raise ValueError(mesg)
             df_slope_by_var: dict[str, pd.core.frame.DataFrame]
             df_slope_by_var = {
@@ -690,9 +700,9 @@ class Basic:
                 )
                 for v, df in df_slope_by_var.items()
             }
-            # TODO: Keep only those parts of df_by_var that are in has["intercept"].
-            # TODO: Also keep has["time"] even if not also in has["intercept"]???
-            df_by_var = {**df_by_var, **df_slope_by_var}
+            # Note that we do not keep the confounding variable has["time"][0] unless it
+            # is also listed in has["intercept"].
+            df_by_var = {**df_intercept_by_var, **df_slope_by_var}
 
         return df_by_var
 
