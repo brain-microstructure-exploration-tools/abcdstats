@@ -690,6 +690,8 @@ class Basic:
                 )
                 for v, df in df_slope_by_var.items()
             }
+            # TODO: Keep only those parts of df_by_var that are in has["intercept"].
+            # TODO: Also keep has["time"] even if not also in has["intercept"]???
             df_by_var = {**df_by_var, **df_slope_by_var}
 
         return df_by_var
@@ -1226,24 +1228,30 @@ class Basic:
         return "\n".join([*fields, *files])
 
     def check_fields(self) -> list[str]:
-        # If schema["required"] == True then verify that key is present
-        # If schema["keys"] or schema["default_keys"] is present then recurse:
-        #   if key in schema["keys"] then recurse there
-        #   else if "default_keys" in schema then recurse there
-        #   else key is unknown.
+        # See self.recursive_check_fields
+
+        # Note that required tested_keys and confound_keys have some fields labeled as
+        # `"required": False` because they must be supplied as either a "variable" or
+        # "variable_default", but need not be both.
+        # TODO: Can we enforce this "either or" appropriately?
         tested_keys = {
-            "filename": {"required": True},
-            "convert": {"required": False},
-            "handle_missing": {"required": False, "values": {"TODO:"}},
-            "is_missing": {"required": False},
-            "type": {"required": True, "values": {"TODO:"}},
-            "description": {"required": False},
-            "internal_name": {"required": False},
+            "filename": {"required": False},
+            "convert": {},
+            "handle_missing": {
+                "values": {"by_value", "invalidate", "separately", "together"}
+            },
+            "is_missing": {},
+            "type": {"required": False, "values": {"ordered", "unordered"}},
+            "description": {},
+            "internal_name": {},
         }
         confound_keys = {
             **tested_keys,
-            "longitudinal": {"required": True, "values": {"TODO:"}},
-            "minimum_perplexity": {"required": False},
+            "longitudinal": {
+                "required": False,
+                "values": {"intercept", "slope", "time"},
+            },
+            "minimum_perplexity": {},
         }
         schema = {
             "keys": {
@@ -1251,8 +1259,8 @@ class Basic:
                 "tested_variables": {
                     "required": True,
                     "keys": {
-                        "source_directory": {"required": False},
-                        "variable_default": {"required": False, "keys": tested_keys},
+                        "source_directory": {},
+                        "variable_default": {"keys": tested_keys},
                         "variable": {
                             "required": True,
                             "default_keys": {"keys": tested_keys},
@@ -1262,44 +1270,32 @@ class Basic:
                 "target_variables": {
                     "required": True,
                     "keys": {
-                        "source_directory": {"required": False},
+                        "source_directory": {},
                         "desired_modality": {"required": True, "values": {"fa", "md"}},
-                        "table_of_filenames_and_metadata": {"required": False},
+                        "table_of_filenames_and_metadata": {},
                         "individual_filenames_and_metadata": {
-                            "required": False,
                             "keys": {
                                 "filename": {"required": True},
                                 "src_subject_id": {"required": True},
                                 "event_name": {"required": True, "values": {"TODO:"}},
                                 "modality": {"required": True, "values": {"fa", "md"}},
-                                "description": {"required": False},
-                            },
+                                "description": {},
+                            }
                         },
                         "mask": {
-                            "required": False,
-                            "keys": {
-                                "filename": {"required": True},
-                                "threshold": {"required": False},
-                            },
+                            "keys": {"filename": {"required": True}, "threshold": {}}
                         },
                         "segmentation": {
-                            "required": False,
-                            "keys": {
-                                "filename": {"required": True},
-                                "background": {"required": False},
-                            },
+                            "keys": {"filename": {"required": True}, "background": {}}
                         },
-                        "template": {
-                            "required": False,
-                            "keys": {"filename": {"required": True}},
-                        },
+                        "template": {"keys": {"filename": {"required": True}}},
                     },
                 },
                 "confounding_variables": {
                     "required": True,
                     "keys": {
-                        "source_directory": {"required": False},
-                        "variable_default": {"required": False, "keys": confound_keys},
+                        "source_directory": {},
+                        "variable_default": {"keys": confound_keys},
                         "variable": {
                             "required": True,
                             "default_keys": {"keys": confound_keys},
@@ -1311,11 +1307,10 @@ class Basic:
                     "keys": {
                         "destination_directory": {"required": True},
                         "local_maxima": {
-                            "required": False,
                             "keys": {
-                                "minimum_negative_log10_p": {"required": False},
-                                "cluster_radius": {"required": False},
-                            },
+                                "minimum_negative_log10_p": {},
+                                "cluster_radius": {},
+                            }
                         },
                     },
                 },
@@ -1324,46 +1319,66 @@ class Basic:
         return self.recursive_check_fields([], self.config, schema)
 
     def recursive_check_fields(
-        self, context: list[str], config: Any, schema: Any
+        self, context: list[str], config: dict[str, Any], schema: dict[str, Any]
     ) -> list[str]:
-        # A `schema` is a dict with up to three keys: "required", "keys", and
-        # "default_keys".  The value associated with the "required" key is a `bool`.
-        # The value associated with the "keys" key is a `dict[str, schema]`.  The value
-        # associated with the "default_keys" key is a `schema`.  "Required" will already
-        # have been checked at the top-level, but we need to check it just before
-        # recursing to a schema from "keys" or "default_keys".  The return value is a
-        # list of failed checks.
+        # The purpose of this routine is to check that the top-level keys in `config`
+        #   and `schema` validate properly, and to recurse more deeply as appropriate.
+        # A `config` is a dict[str, Any], representing the entire YAML file or,
+        #   recursively, a part of it.
+        # A `schema` is a `dict[str, Any]` with up to four keys: "required", "keys",
+        #   "default_keys", and "values".
+        #   * The value associated with the "required" key is a `bool`.  If missing it
+        #     is interpreted as False.
+        #   * The value associated with the "keys" key is a `dict[str, schema]`, which
+        #     is one schema per key.
+        #   * The value associated with the "default_keys" key is a `schema`.  If
+        #     present, this is the schema applicable to any key that does not have a
+        #     schema within schema["keys"]
+        #   * The value associated with the "values" key is a `set[Any]`, which is the
+        #     set of legal values for the key.  If the key is absent, all values are
+        #     legal.
+        #   * "Required" will already have been checked at the top-level, but we need to
+        #     check it just before recursing to a schema from "keys" or "default_keys".
 
-        return (
-            []
-            if schema is None
-            else [
-                *[
-                    mesg
-                    for key, value in config.items()
-                    for mesg in (
-                        self.recursive_check_fields(
-                            [*context, key], value, schema["keys"][key].get("schema")
-                        )
-                        if key in schema.get("keys", {})
-                        else (
-                            self.recursive_check_fields(
-                                [*context, key],
-                                value,
-                                schema["default_keys"].get("schema"),
-                            )
-                            if "default_keys" in schema
-                            else [f"Unrecognized key {key!r} in YAML file"]
-                        )
-                    )
-                ],
-                *[
-                    f"Required key {key!r} not found in YAML file"
-                    for key, value in schema.items()
-                    if value.get("required", False) and key not in config
-                ],
-            ]
-        )
+        # The return value is a list of failed checks, each expressed as a warning
+        # message.
+
+        key: str
+        value: Any
+        new_context: list[str]
+        new_values: set[Any]
+        new_schema: dict[str, Any]
+        response: list[str] = []
+        for key, value in config.items():
+            new_context = [*context, key]
+            # If "values" is present then check that value is valid
+            new_values = schema.get("values", {value})
+            if value not in new_values:
+                response = [
+                    *response,
+                    f"Value {value!r} of key {'.'.join(new_context)} must be one of"
+                    f" {new_values!r}",
+                ]
+            # If there is an applicable schema then recurse
+            new_schema = (
+                schema.get("keys", {})
+                .get(key, {})
+                .get("schema", schema.get("default_keys", {}).get("schema"))
+            )
+            if new_schema is not None:
+                response = [
+                    *response,
+                    *self.recursive_check_fields(new_context, value, new_schema),
+                ]
+        for key, value in schema.items():
+            new_context = [*context, key]
+            # If a key is required but not present then report that
+            if value.get("required", False) and key not in config:
+                response = [
+                    *response,
+                    f"Key {'.'.join(new_context)} is required but was not provided",
+                ]
+        return response
 
     def check_files(self) -> list[str]:
         # TODO: Write me
