@@ -3,6 +3,7 @@ from __future__ import annotations
 import collections
 import copy
 import math
+import os
 import pathlib
 from typing import Any, TypeAlias, Union, cast
 
@@ -19,10 +20,6 @@ import yaml  # type: ignore[import-not-found,import-untyped,unused-ignore]
 BasicValue: TypeAlias = bool | int | float | str | None
 ConfigurationValue: TypeAlias = BasicValue | list[Any]
 ConfigurationType: TypeAlias = dict[str, Union[ConfigurationValue, "ConfigurationType"]]
-
-# TODO: Provide a YAML (and, if referred to, a CVS) linter that checks that the required
-# keys are present, extraneous keys are absent, and values are reasonable, including
-# checking that files exist.  Also, invoke it from self.run() early on.
 
 # TODO: Break up long functions if there are meaningful subfunctions
 
@@ -101,6 +98,12 @@ class Basic:
                 dest[key] = copy.deepcopy(value)
 
     def run(self) -> None:
+        # Validate the supplied YAML file
+        warnings: list[str] = self.lint()
+        if warnings:
+            # TODO: Log these instead of print?
+            print("\n".join(warnings))  # noqa: T201
+
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
         tested_variables: dict[str, dict[str, Any]]
         tested_frame: pd.core.frame.DataFrame
@@ -168,7 +171,7 @@ class Basic:
         self.allclose_affines(
             [target_affine, mask_affine, template_affine, segmentation_affine],
             "Supplied affine transformations for"
-            " target, mask, template, and segmentation must match",
+            " target, mask, template, and segmentation must match.",
         )
 
         # Process inputs to compute statistically significant voxels.
@@ -233,7 +236,7 @@ class Basic:
         if table is None and individuals is None:
             mesg = (
                 "Must supply at least one of `table_of_filenames_and_metadata`"
-                " or `individual_filenames_and_metadata`"
+                " or `individual_filenames_and_metadata`."
             )
             raise KeyError(mesg)
 
@@ -261,7 +264,7 @@ class Basic:
         )
 
         if len(target_frame) == 0:
-            mesg = "No target images were supplied, via table or individuals"
+            mesg = "No target images were supplied, via table or individuals."
             raise ValueError(mesg)
 
         # Keep only those images that are the `desired_modality`.
@@ -270,14 +273,14 @@ class Basic:
         if m_raw is None:
             mesg = (
                 "You must supply a target_variables.desired_modality in the YAML file,"
-                ' often "fa" or "md"'
+                ' often "fa" or "md".'
             )
             raise ValueError(mesg)
         modality: str = cast(str, m_raw)
         target_frame = target_frame[target_frame["modality"] == modality]
 
         if len(target_frame) == 0:
-            mesg = f"No target images of modality {modality!r} were supplied"
+            mesg = f"No target images of modality {modality!r} were supplied."
             raise ValueError(mesg)
 
         # Complain if there are duplicate filenames
@@ -309,7 +312,7 @@ class Basic:
         # Check that shapes match
         all_shapes: list[tuple[int, ...]] = [img.shape for img in target_images]
         if len(all_shapes) > 1 and not all(all_shapes[0] == s for s in all_shapes[1:]):
-            mesg = "The target images are not all the same shape"
+            mesg = "The target images are not all the same shape."
             raise ValueError(mesg)
 
         # Find the common affine transformation
@@ -534,9 +537,7 @@ class Basic:
                 # confounded with actual values of 0.
                 new_missing_name: str = variable + "_missing"
                 if new_missing_name in df_var.columns:
-                    mesg = (
-                        "Failed to get unique column name for" f" {new_missing_name!r}."
-                    )
+                    mesg = f"Failed to get unique column name for {new_missing_name!r}."
                     raise ValueError(mesg)
                 df_var[new_missing_name] = (df_var[variable] == is_missing[0]).astype(
                     int
@@ -549,7 +550,7 @@ class Basic:
             if var_type == "ordered":
                 mesg = (
                     "We do not currently handle the case that"
-                    ' handle_missing == "by_value" and var_type == "ordered"'
+                    ' handle_missing == "by_value" and var_type == "ordered".'
                 )
                 raise ValueError(mesg)
         if handle_missing == "separately":
@@ -567,7 +568,7 @@ class Basic:
             if var_type == "ordered":
                 mesg = (
                     "We do not currently handle the case that"
-                    ' handle_missing == "separately" and var_type == "ordered"'
+                    ' handle_missing == "separately" and var_type == "ordered".'
                 )
                 raise ValueError(mesg)
 
@@ -661,7 +662,7 @@ class Basic:
         if len(has["time"]) > 0:
             new_time_name: str = "E3McmbxXubhzaeZT"
             if any(new_time_name in df_var.columns for df_var in df_by_var.values()):
-                mesg = "Failed to get unique column name for df_time"
+                mesg = "Failed to get unique column name for df_time."
                 raise ValueError(mesg)
             df_time: pd.core.frame.DataFrame
             df_time = (
@@ -684,7 +685,7 @@ class Basic:
             if bad_names:
                 mesg = (
                     "Failed to get unique column name for slope "
-                    f"variable{'s' if len(bad_names) > 1 else ' '} {bad_names!r}"
+                    f'variable{"s" if len(bad_names) > 1 else ""} {bad_names!r}.'
                 )
                 raise ValueError(mesg)
             df_slope_by_var: dict[str, pd.core.frame.DataFrame]
@@ -874,7 +875,7 @@ class Basic:
                 int(value): str(header[name_key])
                 for key, value in header.items()
                 if key.endswith("_LabelValue")
-                for name_key in [f"{key[:-len('_LabelValue')]}_Name"]
+                for name_key in [f'{key[:-len("_LabelValue")]}_Name']
                 if name_key in header
             }
 
@@ -935,7 +936,7 @@ class Basic:
         if masker is not None and target_vars.shape[1:] != masker.mask_img_.shape:
             mesg = (
                 f"The shape of each target image {target_vars.shape[1:]} and the"
-                f" shape of the mask {masker.mask_img_.shape} must match"
+                f" shape of the mask {masker.mask_img_.shape} must match."
             )
             raise ValueError(mesg)
 
@@ -1031,7 +1032,7 @@ class Basic:
             mesg: str = (
                 "Must supply output.local_maxima."
                 + " and output.local_maxima.".join(mesgs)
-                + "for abcdstats.workflow.Basic.compute_local_maxima"
+                + "for abcdstats.workflow.Basic.compute_local_maxima."
             )
             raise ValueError(mesg)
 
@@ -1106,29 +1107,27 @@ class Basic:
         background_index: int | None,
     ) -> str:
         return (
-            "No description"
+            "No description."
             if segmentation_voxels is None
             or segmentation_map is None
             or background_index is None
-            else (
-                self.describe_maximum_using_partition(
-                    xyz,
-                    log10_pvalue,
-                    segmentation_voxels,
-                    segmentation_map,
-                    background_index,
-                )
-                if len(segmentation_voxels.shape) == 3
-                else self.describe_maximum_using_cloud(
-                    xyz,
-                    log10_pvalue,
-                    segmentation_voxels,
-                    segmentation_map,
-                    background_index,
-                )
-                if len(segmentation_voxels.shape) == 4
-                else "segmentation_voxels shape error"
+            else self.describe_maximum_using_partition(
+                xyz,
+                log10_pvalue,
+                segmentation_voxels,
+                segmentation_map,
+                background_index,
             )
+            if len(segmentation_voxels.shape) == 3
+            else self.describe_maximum_using_cloud(
+                xyz,
+                log10_pvalue,
+                segmentation_voxels,
+                segmentation_map,
+                background_index,
+            )
+            if len(segmentation_voxels.shape) == 4
+            else "segmentation_voxels shape error."
         )
 
     def describe_maximum_using_partition(
@@ -1166,7 +1165,7 @@ class Basic:
         return (
             f"-log_10 p(t-stat)={round(1000.0 * log10_pvalue[x, y, z]) / 1000.0} at"
             f" ({x}, {y}, {z}) {where} region {segmentation_map[region_index]}"
-            f" ({region_index})"
+            f" ({region_index})."
         )
 
     def describe_maximum_using_cloud(
@@ -1181,7 +1180,7 @@ class Basic:
         t_raw: ConfigurationType | ConfigurationValue | None
         t_raw = self.config_get(["output", "local_maxima", "label_threshold"])
         if t_raw is None:
-            mesg = "output.local_maxima.label_threshold must be supplied"
+            mesg = "output.local_maxima.label_threshold must be supplied."
             raise ValueError(mesg)
         threshold: float
         threshold = cast(float, t_raw)
@@ -1198,7 +1197,7 @@ class Basic:
             " in regions:",
             *[
                 f"    {segmentation_map[region]} ({region}) confidence = "
-                f"{round(100000.0 * cloud_here[r]) / 1000}%"
+                f"{round(100000.0 * cloud_here[r]) / 1000}%."
                 for i, r in enumerate(argsort)
                 if i < 2 or cloud_here[r] >= threshold
                 for region in [r + background_index + 1]
@@ -1232,17 +1231,11 @@ class Basic:
             response = pd.core.frame.DataFrame()
         return response
 
-    def lint(self) -> str:
-        fields: list[str] = self.check_fields()
-        files: list[str] = self.check_files()
-        return "\n".join([*fields, *files])
-
-    def check_fields(self) -> list[str]:
-        # See self.recursive_check_fields
-
+    def lint(self) -> list[str]:
         # Note that required tested_keys and confound_keys have some fields labeled as
-        # `"required": False` because they must be supplied as either a "variable" or
-        # "variable_default", but need not be both.
+        # `"required": False` (which does nothing because False is the default) because
+        # they must be supplied as either a "variable" or "variable_default", but need
+        # not be both.
         # TODO: Can we enforce this "either or" appropriately?
         tested_keys = {
             "filename": {"required": False},
@@ -1284,12 +1277,26 @@ class Basic:
                         "desired_modality": {"required": True, "values": {"fa", "md"}},
                         "table_of_filenames_and_metadata": {},
                         "individual_filenames_and_metadata": {
-                            "keys": {
-                                "filename": {"required": True},
-                                "src_subject_id": {"required": True},
-                                "event_name": {"required": True, "values": {"TODO:"}},
-                                "modality": {"required": True, "values": {"fa", "md"}},
-                                "description": {},
+                            "default_keys": {
+                                "keys": {
+                                    "filename": {"required": True},
+                                    "src_subject_id": {"required": True},
+                                    "event_name": {
+                                        "required": True,
+                                        "values": {
+                                            "baseline_year_1_arm_1",
+                                            "1_year_follow_up_y_arm_1",
+                                            "2_year_follow_up_y_arm_1",
+                                            "3_year_follow_up_y_arm_1",
+                                            "4_year_follow_up_y_arm_1",
+                                        },
+                                    },
+                                    "modality": {
+                                        "required": True,
+                                        "values": {"fa", "md"},
+                                    },
+                                    "description": {},
+                                }
                             }
                         },
                         "mask": {
@@ -1326,10 +1333,19 @@ class Basic:
                 },
             }
         }
+
+        fields: list[str] = self.check_fields(schema)
+        files: list[str] = self.check_files(schema)
+        return [*fields, *files]
+
+    def check_fields(self, schema: dict[str, Any]) -> list[str]:
         return self.recursive_check_fields([], self.config, schema)
 
     def recursive_check_fields(
-        self, context: list[str], config: dict[str, Any], schema: dict[str, Any]
+        self,
+        context: list[str],
+        config: dict[str, Any] | list[Any],
+        schema: dict[str, Any],
     ) -> list[str]:
         # The purpose of this routine is to check that the top-level keys in `config`
         #   and `schema` validate properly, and to recurse more deeply as appropriate.
@@ -1359,6 +1375,11 @@ class Basic:
         new_values: set[Any]
         new_schema: dict[str, Any]
         response: list[str] = []
+        config = (
+            {"Entry_" + str(k): v for k, v in dict(enumerate(config)).items()}
+            if isinstance(config, list)
+            else config
+        )
         for key, value in config.items():
             new_context = [*context, key]
             # If "values" is present then check that value is valid
@@ -1366,8 +1387,8 @@ class Basic:
             if value not in new_values:
                 response = [
                     *response,
-                    f"Value {value!r} of key {'.'.join(new_context)} must be one of"
-                    f" {new_values!r}",
+                    f'Value {value!r} of key {".".join(new_context)} must be one of'
+                    f" {new_values!r}.",
                 ]
             # If there is an applicable schema then recurse
             new_schema = (
@@ -1386,10 +1407,138 @@ class Basic:
             if value.get("required", False) and key not in config:
                 response = [
                     *response,
-                    f"Key {'.'.join(new_context)} is required but was not provided",
+                    f'Key {".".join(new_context)} is required but was not provided.',
                 ]
+
         return response
 
-    def check_files(self) -> list[str]:
-        # TODO: Write me
+    def check_files(self, schema: dict[str, Any]) -> list[str]:
+        # For each source_directory, destination_directory, and filename check whether
+        # it exists.  (Filenames may be relative to the specified directories.) For
+        # table_of_filenames_and_metadata, check existence and validity.
+
+        response: list[str] = []
+        input_raw: ConfigurationType | ConfigurationValue | None
+
+        # tested = ksads
+        # target = voxels
+        # confounding = interview_age, etc.
+        for input in ["tested", "target", "confounding"]:
+            # source_directory can be provided for tested, target, and confounding
+            input_raw = self.config_get([input + "_variables", "source_directory"])
+            input_source_directory: pathlib.Path | None
+            input_source_directory = (
+                pathlib.Path(cast(str, input_raw)) if input_raw is not None else None
+            )
+
+            if input != "target":
+                response = [
+                    *response,
+                    *self.check_file_internal(
+                        input_source_directory,
+                        self.config_get(
+                            [input + "_variables", "variable_default", "filename"]
+                        ),
+                    ),
+                ]
+
+                input_raw = self.config_get([input + "_variables", "variable"])
+                for variable in cast(dict[str, Any], input_raw):
+                    response = [
+                        *response,
+                        *self.check_file_internal(
+                            input_source_directory,
+                            self.config_get(
+                                [input + "_variables", "variable", variable, "filename"]
+                            ),
+                        ),
+                    ]
+
+            if input == "target":
+                input_raw = self.config_get(
+                    ["target_variables", "individual_filenames_and_metadata"]
+                )
+                if input_raw is not None:
+                    input_list: list[dict[str, Any]]
+                    input_list = cast(list[dict[str, Any]], input_raw)
+                    for file_dict in input_list:
+                        response = [
+                            *response,
+                            *self.check_file_internal(
+                                input_source_directory, file_dict.get("filename")
+                            ),
+                        ]
+                input_raw = self.config_get(
+                    ["target_variables", "table_of_filenames_and_metadata"]
+                )
+                response = [
+                    *response,
+                    *self.check_csv(input_source_directory, input_raw, schema),
+                ]
+
+        input_raw = self.config_get(["output", "destination_directory"])
+        if input_raw is None:
+            response = [*response, "output.destination_directory must be supplied."]
+        elif not pathlib.Path(cast(str, input_raw)).is_dir():
+            response = [
+                *response,
+                f"output.destination_directory {input_raw} does not exist.",
+            ]
+
+        return response
+
+    def check_file_internal(
+        self,
+        directory: pathlib.Path | None,
+        filename_raw: ConfigurationType | ConfigurationValue | None,
+    ) -> list[str]:
+        if filename_raw is None:
+            return []
+        filename: pathlib.Path = pathlib.Path(cast(str, filename_raw))
+        if directory is not None:
+            filename = directory / filename
+        path: pathlib.Path = pathlib.Path(filename)
+        if not (path.is_file() and os.access(path, os.R_OK)):
+            return [f"Cannot read {filename}."]
+        # All is good
+        return []
+
+    def check_csv(
+        self,
+        directory: pathlib.Path | None,
+        filename_raw: ConfigurationType | ConfigurationValue | None,
+        schema: dict[str, Any],
+    ) -> list[str]:
+        if filename_raw is None:
+            return []
+        filename: pathlib.Path = pathlib.Path(cast(str, filename_raw))
+        if directory is not None:
+            filename = directory / filename
+        path: pathlib.Path = pathlib.Path(filename)
+        if not (path.is_file() and os.access(path, os.R_OK)):
+            return [f"Cannot read {filename}."]
+        # Sanity check contents
+        csv: pd.core.frame.DataFrame = pd.read_csv(path)
+        expected: list[str] = [
+            "filename",
+            "src_subject_id",
+            "event_name",
+            "modality",
+            "description",
+        ]
+        if list(csv.columns) != expected:
+            return [
+                f"CSV file {filename} has columns {list(csv.columns)} but should have"
+                f" columns {expected}."
+            ]
+        config: list[dict[str, Any]]
+        config = csv.to_dict(orient="records")
+        self.recursive_check_fields(
+            ["target_variables", "table_of_filenames_and_metadata"],
+            config,
+            schema["keys"]["target_variables"]["keys"][
+                "individual_filenames_and_metadata"
+            ],
+        )
+        # All is good
         return []
