@@ -25,13 +25,30 @@ ConfigurationType: TypeAlias = dict[str, Union[ConfigurationValue, "Configuratio
 
 
 class Basic:
-    """
-    This is a working workflow that is configurable via a YAML file.  Changes not
-    achievable via configuration can be made by subclassing this class and overriding
-    relevant methods.
+    """abcdstats.workflow.Basic is is for hypothesis generation from ABCD MR data.  It
+    tests variables (usually KSADS diagnoses), against target variables (such as data
+    from fractional anisotropy MR scans), in the presence of confounding variables (such
+    as interview_age, site_id_l).
+
+    The workflow is configured via a YAML file.  Changes not achievable via
+    configuration can be made by subclassing this class and overriding relevant methods.
+
     """
 
     def __init__(self, *, yaml_file: str | pathlib.Path | None = None) -> None:
+        """Create an instance of the abcdstats.workflow.Basic class for running a
+        workflow.
+
+        Args:
+            yaml_file (str | pathlib.Path | None): The location of the YAML file
+                configure the workflow.  If omitted, one can later invoke the
+                configure(yaml_file) method.
+
+        Returns:
+            abcdstats.workflow.Basic: The class instance for running the workflow.
+
+        """
+
         # globally useful values
         self.join_keys: list[str] = ["src_subject_id", "eventname"]
 
@@ -81,6 +98,18 @@ class Basic:
             self.configure(yaml_file=yaml_file)
 
     def configure(self, *, yaml_file: str | pathlib.Path | None) -> None:
+        """Designate the workflow configuration via a YAML file.
+
+        Args:
+            yaml_file (str | pathlib.Path | None): Use the provided YAML file to
+                incrementally change the configuration of workflow.  If supplied as
+                `None` then the configuration will be reset to package defaults.
+
+        Returns:
+            None
+
+        """
+
         if yaml_file is not None:
             with pathlib.Path(yaml_file).open("r", encoding="utf-8") as file:
                 self.copy_keys_into(src=yaml.safe_load(file), dest=self.config)
@@ -91,6 +120,20 @@ class Basic:
     def copy_keys_into(
         self, *, src: ConfigurationType, dest: ConfigurationType
     ) -> None:
+        """Updates configuration information from a source to a destination.  Values in
+        the destination will be retained unless they are overwritten from the source.
+
+        Args:
+            src (ConfigurationType): The configuration from which information is
+                transferred into the other configuration.
+            dest (ConfigurationType): The configuration to which information is
+                transferred from the other configuration.
+
+        Returns:
+            None
+
+        """
+
         for key, value in src.items():
             if isinstance(value, dict) and key in dest and isinstance(dest[key], dict):
                 self.copy_keys_into(src=value, dest=cast(ConfigurationType, dest[key]))
@@ -98,6 +141,17 @@ class Basic:
                 dest[key] = copy.deepcopy(value)
 
     def run(self) -> None:
+        """Run the workflow.  As a preliminary step, lint the YAML file and, if
+        supplied, the CSV file.
+
+        Args:
+            None
+
+        Returns:
+            None
+
+        """
+
         # Validate the supplied YAML file
         warnings: list[str] = self.lint()
         if warnings:
@@ -198,6 +252,17 @@ class Basic:
         # TODO: Invoke matplotlib
 
     def get_target_data(self) -> pd.core.frame.DataFrame:
+        """Read the meta-information about the target data (voxel intensities).  This is used for filtering and, later, for retrieving the needed data.
+
+        Args:
+            None
+
+        Returns:
+            pd.core.frame.DataFrame: A table of meta-information of images.  Each image
+                that might be analyzed is a row in this table.
+
+        """
+
         table: pathlib.Path | None
         individuals: list[dict[str, Any]] | None
         table, individuals = self.get_target_data_table_and_individuals()
@@ -210,6 +275,20 @@ class Basic:
     def get_target_data_table_and_individuals(
         self,
     ) -> tuple[pathlib.Path | None, list[dict[str, Any]] | None]:
+        """Extract information supplied in the YAML configuration file for each image
+        and locate the optional CSV file that lists additional images.
+
+        Args:
+            None
+
+        Returns:
+            pathlib.Path | None: The location of the CSV file if any.
+            list[dict[str, Any]] | None: A list of images described in the YAML file, if
+                any.  The dict associated with an image is meta-information about the
+                image supplied in the YAML file.
+
+        """
+
         mesg: str
         d_raw: ConfigurationType | ConfigurationValue | None
         d_raw = self.config_get(["target_variables", "source_directory"])
@@ -255,6 +334,21 @@ class Basic:
     def get_target_data_frame(
         self, table: pathlib.Path | None, individuals: list[dict[str, Any]] | None
     ) -> pd.core.frame.DataFrame:
+        """Combine images from YAML and CSV sources, filter on modality (e.g., "fa" or
+        "md") and check that there are no duplicates.
+
+        Args:
+            table (pathlib.Path | None): The location of the CSV file if any.
+            individuals (list[dict[str, Any]] | None): A list of images described in the
+                YAML file, if any.  The dict associated with an image is
+                meta-information about the image supplied in the YAML file.
+
+        Returns:
+            pd.core.frame.DataFrame: Combined table of meta-information about all
+                images, whether initially supplied in the YAML file or CSV file.
+
+        """
+
         target_frame: pd.core.frame.DataFrame = pd.concat(
             [
                 pd.read_csv(table) if table is not None else None,
@@ -302,6 +396,21 @@ class Basic:
     def get_target_data_voxels_and_affine(
         self, target_frame: pd.core.frame.DataFrame
     ) -> tuple[list[nib.filebasedimages.FileBasedImage], npt.NDArray[np.float64]]:
+        """Fetch lazy-lodable voxel data and associated the affine transform.
+
+        Args:
+            pd.core.frame.DataFrame: Combined table of meta-information about all
+                images, whether initially supplied in the YAML file or CSV file.
+
+        Returns:
+            list[nib.filebasedimages.FileBasedImage]: List of nibabel loaded images.
+                These are lazy-loading images that have not loaded the large voxel data
+                sets yet, but can do so efficiently when needed.
+            npt.NDArray[np.float64]: The affine transformation image used by all the
+                nibabel images.
+
+        """
+
         mesg: str
         # Create nib.filebasedimages.FileBasedImage for each input file.  Note that the
         # order of the elements in `target_images` must match the order of the rows in
@@ -331,6 +440,22 @@ class Basic:
     def get_tested_data(
         self,
     ) -> tuple[dict[str, dict[str, Any]], pd.core.frame.DataFrame]:
+        """Fetch tested data (KSADS diagnoses).  Note that the variables returned may not
+        exactly match the requested variables.  For example, an unordered variable (such
+        as one that uses integers to represent different categories) will be one-hot
+        converted into multiple variables.
+
+        Args:
+            None
+
+        Returns:
+            dict[str, dict[str, Any]]: A dictionary of meta-information for each
+                (possibly converted) tested variable.
+            pd.core.frame.DataFrame: A data table with row for each image that provides
+                the image's values for each (possibly converted) tested variable.
+
+        """
+
         mesg: str
 
         d_raw: ConfigurationType | ConfigurationValue | None
@@ -365,6 +490,25 @@ class Basic:
     def get_confounding_data(
         self,
     ) -> tuple[dict[str, dict[str, Any]], pd.core.frame.DataFrame]:
+        """Fetch the data for the confounding variables (such as interview_age,
+        site_id_l).  Note that the variables returned may not exactly match the
+        requested variables.  For example, an unordered variable (such as one that uses
+        integers to represent different categories) will be one-hot converted into
+        multiple variables.  For example, a variable that is to be used as a slope
+        random effect will be converted to be the product of its original value and an
+        appropriate time value.
+
+        Args:
+            None
+
+        Returns:
+            dict[str, dict[str, Any]]: A dictionary of meta-information for each
+                (possibly converted) confounding variable.
+            pd.core.frame.DataFrame: A data table with row for each image that provides
+                the image's values for each (possibly converted) confounding variable.
+
+        """
+
         mesg: str
 
         d_raw: ConfigurationType | ConfigurationValue | None
@@ -401,6 +545,26 @@ class Basic:
         variable_default: dict[str, Any],
         variables: dict[str, dict[str, Any]],
     ) -> tuple[dict[str, dict[str, Any]], dict[str, pd.core.frame.DataFrame]]:
+        """Fetch data (tested, target, or confounding) and convert it (e.g. via one-hot)
+        as needed or requested.
+
+        Args:
+            directory (pathlib.Path | None): source_directory that is applicable to this
+                data type (tested, target, or confounding).
+            variable_default (dict[str, Any]): default meta-information values to be
+                used for each variable when not specifically provided for a variable.
+            variables (dict[str, dict[str, Any]]): meta-information values to be
+                used for each variable
+
+        Returns:
+            dict[str, dict[str, Any]]: Updated `variables` information that reflects any
+                conversions that happened.
+            dict[str, pd.core.frame.DataFrame]: For each of the updated variables, a
+                data table with a row for each image that provides the image's values
+                for each variable.
+
+        """
+
         # Use defaults unless a variable-specific value is supplied
         variables = {
             variable: variable_default | var_config
@@ -471,7 +635,7 @@ class Basic:
         }
 
         # Segregate dataframes by variable.
-        by_var: dict[str, tuple[ConfigurationType, pd.core.frame.DataFrame]]
+        by_var: dict[str, tuple[dict[str, dict[str, Any]], pd.core.frame.DataFrame]]
         by_var = {
             variable: self.handle_variable_config(variable, var_config, df_by_file)
             for variable, var_config in variables.items()
@@ -479,7 +643,7 @@ class Basic:
         variables = {
             **variables,
             **{
-                variable: cast(dict[str, Any], var_config)
+                variable: var_config
                 for value in by_var.values()
                 for variable, var_config in value[0].items()
             },
@@ -493,7 +657,26 @@ class Basic:
         variable: str,
         var_config: dict[str, Any],
         df_by_file: dict[str, pd.core.frame.DataFrame],
-    ) -> tuple[ConfigurationType, pd.core.frame.DataFrame]:
+    ) -> tuple[dict[str, dict[str, Any]], pd.core.frame.DataFrame]:
+        """Use meta-information about a variable to process and/or convert it.  This
+        includes "convert" of some values to others, handling missing data, handling
+        unordered categories, etc.
+
+        Args:
+            variable (str): The name of the variable being handled
+            var_config (dict[str, Any]): The meta-information for the variable.
+            df_by_file (dict[str, pd.core.frame.DataFrame]): The data for each image,
+                organized by the file name (rather than variable name) from which it
+                comes.
+
+        Returns:
+            dict[str, dict[str, Any]]: The meta-information for any newly created
+                variables.
+            pd.core.frame.DataFrame: Converted data for each (possibly just created)
+                variable.
+
+        """
+
         convert: dict[str, Any]
         convert = var_config["convert"]
         handle_missing: str
@@ -588,7 +771,7 @@ class Basic:
 
         # Each newly created column, if any, is a new variable, so prepare an entry for
         # `variables` by copying from its origin variable.
-        variables: ConfigurationType
+        variables: dict[str, dict[str, Any]]
         variables = {
             new_variable: {**var_config, "internal_name": new_variable}
             for new_variable in set(df_var.columns) - df_var_columns
@@ -599,6 +782,21 @@ class Basic:
     def enforce_perplexity(
         self, df_var: pd.core.frame.DataFrame, variables: dict[str, dict[str, Any]]
     ) -> pd.core.frame.DataFrame:
+        """Eliminate each variable (column) that is too close to constant if the user
+        has set a minimum_perplexity for that variable (or via variable_default).
+
+        Args:
+            df_var (pd.core.frame.DataFrame): Data from which variables (columns) may be
+                culled.
+            variables (dict[str, dict[str, Any]]): Meta-information about each variable
+                including its `minimum_perplexity`.
+
+        Returns:
+            pd.core.frame.DataFrame: The dataframe with its low complexity variables
+            removed.
+
+        """
+
         return df_var.drop(
             columns=[
                 col
@@ -624,6 +822,21 @@ class Basic:
         variables: dict[str, dict[str, Any]],
         df_by_var: dict[str, pd.core.frame.DataFrame],
     ) -> dict[str, pd.core.frame.DataFrame]:
+        """Handle random effects for confounding variables
+
+        Args:
+            variables (dict[str, dict[str, Any]]): meta-information values to be used
+                for each variable, including "time", "intercept", and "slope" values for
+                the "longitudinal" key.
+            df_by_var (dict[str, pd.core.frame.DataFrame]): a data frame with image data
+                for each variable.
+
+        Returns:
+            dict[str, pd.core.frame.DataFrame]: an updated df_by_var that includes the
+                requested random effects.
+
+        """
+
         kinds: list[str] = ["time", "intercept", "slope"]
         mesg: str
 
@@ -723,6 +936,33 @@ class Basic:
         npt.NDArray[np.float64],
         npt.NDArray[np.float64],
     ]:
+        """Combine tested, target, and confounding variables information and create
+        objects directly usable with nilearn.permuted_ols.  Reject an image if it is not
+        sufficiently present across the three variable data sets.
+
+        Args:
+            tested_variables (dict[str, dict[str, Any]]): meta-information about the
+                tested variables.
+            tested_frame (pd.core.frame.DataFrame): values for the tested variables
+            target_frame (pd.core.frame.DataFrame): (lazy) values for the target
+                variables.
+            confound_variables (dict[str, dict[str, Any]]): meta-information about the
+                confounding variables.
+            confound_frame (pd.core.frame.DataFrame): values for the confounding
+                variables.
+
+        Returns:
+            pd.core.frame.DataFrame: updated tested_frame
+            pd.core.frame.DataFrame: updated target_frame
+            pd.core.frame.DataFrame: updated confounding_frame
+            npt.NDArray[np.float64]: version of tested_frame for nilearn.permuted_ols.
+            list[nib.filebasedimages.FileBasedImage]: Lazy-loading voxel data
+            npt.NDArray[np.float64]: affine transformation associated with target images
+            npt.NDArray[np.float64]: version of confounding_frame for
+                nilearn.permuted_ols.
+
+        """
+
         # Note that the join with target_frame is "one_to_many" because there could be
         # multiple images associated with a particular (src_subject_id, eventname) pair.
         # For example, they could be images with different modalities (such as FA
@@ -776,6 +1016,18 @@ class Basic:
     def get_source_mask(
         self,
     ) -> tuple[nilearn.maskers.NiftiMasker | None, npt.NDArray[np.float64] | None]:
+        """Read in mask for choosing which voxels should be target variables.  Returns
+        `(None, None)` if no mask is requested.
+
+        Args:
+           None
+
+        Returns:
+            nilearn.maskers.NiftiMasker | None: Mask object used by nilearn
+            npt.NDArray[np.float64] | None: Affine transformation for mask image
+
+        """
+
         d_raw: ConfigurationType | ConfigurationValue | None
         d_raw = self.config_get(["target_variables", "source_directory"])
         directory: pathlib.Path | None
@@ -815,6 +1067,18 @@ class Basic:
     ) -> tuple[
         nib.filebasedimages.FileBasedImage | None, npt.NDArray[np.float64] | None
     ]:
+        """Read in template to serve as background for output images.  Returns `(None,
+        None)` if no template is requested.
+
+        Args:
+            None
+
+        Returns:
+            nib.filebasedimages.FileBasedImage | None: Lazy-loaded template image.
+            npt.NDArray[np.float64] | None: Affine transformation for template image.
+
+        """
+
         d_raw: ConfigurationType | ConfigurationValue | None
         d_raw = self.config_get(["target_variables", "source_directory"])
         directory: pathlib.Path | None
@@ -844,6 +1108,24 @@ class Basic:
         dict[int, str] | None,
         int | None,
     ]:
+        """Returns segmentation information for the brain, for use in annotating
+        statistically significant voxels.
+
+        Args:
+            None
+
+        Returns:
+            npt.NDArray[np.float64 | int] | None: segmentation data organized by voxel.
+                Voxels will be `np.float` with shape (num_segments, shapex, shapey,
+                shapez) or will be `int` with shape (shapex, shapey, shapez).
+            npt.NDArray[np.float64] | None: affine transformation for segmentation data
+            collections.OrderedDict[str, Any] | None: raw header information from NRRD
+                image file
+            dict[int, str] | None: map from segment int to segment description
+            int | None: segment index corresponding to background (no segment).
+
+        """
+
         d_raw: ConfigurationType | ConfigurationValue | None
         d_raw = self.config_get(["target_variables", "source_directory"])
         directory: pathlib.Path | None
@@ -863,12 +1145,14 @@ class Basic:
         background_index: int | None
         background_index = cast(int, b_raw) if b_raw is not None else None
 
+        # Voxels will be `np.float` with shape (num_segments, shapex, shapey, shapez) or
+        # will be `int` with shape (shapex, shapey, shapez).
         voxels: npt.NDArray[np.float64 | int] | None = None
         header: collections.OrderedDict[str, Any] | None = None
         affine: npt.NDArray[np.float64] | None = None
         segmentation_map: dict[int, str] | None = None
         if filename is not None:
-            voxels, header = nrrd.read(filename)  # shape = (71, 140, 140, 140)
+            voxels, header = nrrd.read(filename)
             header = cast(collections.OrderedDict[str, Any], header)
             affine = self.construct_affine(header)
             segmentation_map = {
@@ -884,6 +1168,17 @@ class Basic:
     def construct_affine(
         self, header: collections.OrderedDict[str, Any]
     ) -> npt.NDArray[np.float64]:
+        """Construct 4-by-4 affine transformation matrix from NRRD image header
+        information.
+
+        Args:
+            header (collections.OrderedDict[str, Any]): NNRD image header information.
+
+        Returns:
+            npt.NDArray[np.float64]: affine transformation matrix
+
+        """
+
         affine: npt.NDArray[np.float64]
 
         affine = np.eye(4, dtype=np.float64)
@@ -898,6 +1193,19 @@ class Basic:
     def allclose_affines(
         self, affines: list[npt.NDArray[np.float64]], mesg: str
     ) -> None:
+        """Checks that all the supplied affine matrices are similar enough.
+
+        Args:
+            affines (list[npt.NDArray[np.float64]]): list of affine transformation
+                matrices.
+            mesg (str): message for ValueError exception when the matrices are not
+                sufficiently similar.
+
+        Returns:
+            None
+
+        """
+
         affines = [a for a in affines if a is not None]
         if len(affines) > 1 and not all(
             np.allclose(affines[0], a) for a in affines[1:]
@@ -912,6 +1220,26 @@ class Basic:
         confounding_vars: npt.NDArray[np.float64] | None,
         masker: nilearn.maskers.NiftiMasker | None,
     ) -> tuple[dict[str, npt.NDArray[np.float64]], npt.NDArray[np.float64]]:
+        """Invoke nilearn.permuted_ols and nilearn.glm_ols to compute statistically
+        significant voxels and associated information.
+
+        Args:
+            tested_vars (npt.NDArray[np.float64]): tested variable data for each image.
+            target_images (list[nib.filebasedimages.FileBasedImage]): Lazy-loadable
+                target variable data for each image.
+            confounding_vars (npt.NDArray[np.float64] | None): confounding variable data
+                for each image.
+            masker (nilearn.maskers.NiftiMasker | None): Mask indicating which voxels to
+                compute statistical significance for.
+
+        Returns:
+            dict[str, npt.NDArray[np.float64]]: response from
+                nilearn.mass_univariate.permuted_ols.
+            npt.NDArray[np.float64]: response from
+                nilearn.glm.OLSModel(...).fit(...).theta
+
+        """
+
         mesg: str
         """
         TODO: Maybe we'll need this later:
@@ -1004,6 +1332,28 @@ class Basic:
         segmentation_map: dict[int, str] | None,
         background_index: int | None,
     ) -> list[list[tuple[list[int], str]]]:
+        """For each tested variable, find local maxima in -log10(p-value) data and
+        describe them.
+
+        Args:
+            logp_max_t (npt.NDArray[np.float64]): log10 p-values from permuted_ols for
+                each tested variable and each voxel location.
+            segmentation_voxels (npt.NDArray[np.float64 | int] | None): segmentation
+                data organized by voxel.  Voxels will be `np.float` with shape
+                (num_segments, shapex, shapey, shapez) or will be `int` with shape
+                (shapex, shapey, shapez).
+            segmentation_map (dict[int, str] | None): map from segment int to segment
+                description
+            background_index (int | None): segment index corresponding to background (no
+                segment).
+
+        Returns:
+            list[list[tuple[list[int], str]]]: for each tested variable returns a list
+                of local_maxima, where each local maxima is a 3-dimensional location
+                with a description.
+
+        """
+
         return [
             self.compute_local_maxima_for_variable(
                 variable, segmentation_voxels, segmentation_map, background_index
@@ -1018,6 +1368,27 @@ class Basic:
         segmentation_map: dict[int, str] | None,
         background_index: int | None,
     ) -> list[tuple[list[int], str]]:
+        """For a specific tested variable, find local maxima in -log10(p-value) data and
+        describe them.
+
+        Args:
+            variable (npt.NDArray[np.float64]): log10 p-values from permuted_ols of a
+                specific tested variable and each voxel location.
+            segmentation_voxels (npt.NDArray[np.float64 | int] | None): segmentation
+                data organized by voxel.  Voxels will be `np.float` with shape
+                (num_segments, shapex, shapey, shapez) or will be `int` with shape
+                (shapex, shapey, shapez).
+            segmentation_map (dict[int, str] | None): map from segment int to segment
+                description
+            background_index (int | None): segment index corresponding to background (no
+                segment).
+
+        Returns:
+            list[tuple[list[int], str]]: a list of local_maxima, where each local maxima
+                is a 3-dimensional location with a description.
+
+        """
+
         m_raw: ConfigurationType | ConfigurationValue | None
         m_raw = self.config_get(["output", "local_maxima", "minimum_negative_log10_p"])
         r_raw: ConfigurationType | ConfigurationValue | None
@@ -1106,6 +1477,26 @@ class Basic:
         segmentation_map: dict[int, str] | None,
         background_index: int | None,
     ) -> str:
+        """Describe a specific local maximum of a specific tested variable,
+
+        Args:
+            xyz (list[int]): location of voxel.
+            log10_pvalue (npt.NDArray[np.float64]): log10 p-values from permuted_ols of
+                a specific tested variable and each voxel location.
+            segmentation_voxels (npt.NDArray[np.float64 | int] | None): segmentation
+                data organized by voxel.  Voxels will be `np.float` with shape
+                (num_segments, shapex, shapey, shapez) or will be `int` with shape
+                (shapex, shapey, shapez).
+            segmentation_map (dict[int, str] | None): map from segment int to segment
+                description
+            background_index (int | None): segment index corresponding to background (no
+                segment).
+
+        Returns:
+            str: a local_maximum's description.
+
+        """
+
         return (
             "No description."
             if segmentation_voxels is None
@@ -1138,6 +1529,26 @@ class Basic:
         segmentation_map: dict[int, str],
         background_index: int,
     ) -> str:
+        """Describe a specific local maximum of a specific tested variable using a
+        partition (i.e. a 3-dimensional segmentation_voxels).
+
+        Args:
+            xyz (list[int]): location of voxel.
+            log10_pvalue (npt.NDArray[np.float64]): log10 p-values from permuted_ols of
+                a specific tested variable and each voxel location.
+            segmentation_voxels (npt.NDArray[np.float64 | int] | None): segmentation
+                data organized by voxel.  Voxels will be `np.float` with shape
+                (num_segments, shapex, shapey, shapez) or will be `int` with shape
+                (shapex, shapey, shapez).
+            segmentation_map (dict[int, str] | None): map from segment int to segment
+                description
+            background_index (int | None): segment index corresponding to background (no
+                segment).
+
+        Returns:
+            str: a local_maximum's description.
+        """
+
         # `radius` describes how far to look for a label.  It is distinct from the
         # cluster_radius that is used to define isolation of a peak.
         radius: int = 3
@@ -1176,6 +1587,26 @@ class Basic:
         segmentation_map: dict[int, str],
         background_index: int,
     ) -> str:
+        """Describe a specific local maximum of a specific tested variable using a cloud
+        (i.e. a 4-dimensional segmentation_voxels).
+
+        Args:
+            xyz (list[int]): location of voxel.
+            log10_pvalue (npt.NDArray[np.float64]): log10 p-values from permuted_ols of
+                a specific tested variable and each voxel location.
+            segmentation_voxels (npt.NDArray[np.float64 | int] | None): segmentation
+                data organized by voxel.  Voxels will be `np.float` with shape
+                (num_segments, shapex, shapey, shapez) or will be `int` with shape
+                (shapex, shapey, shapez).
+            segmentation_map (dict[int, str] | None): map from segment int to segment
+                description
+            background_index (int | None): segment index corresponding to background (no
+                segment).
+
+        Returns:
+            str: a local_maximum's description.
+        """
+
         mesg: str
         t_raw: ConfigurationType | ConfigurationValue | None
         t_raw = self.config_get(["output", "local_maxima", "label_threshold"])
@@ -1209,6 +1640,17 @@ class Basic:
     def config_get(
         self, list_of_keys: list[str]
     ) -> ConfigurationType | ConfigurationValue | None:
+        """Read a value from the workflow configuration.
+
+        Args:
+           list_of_keys (list[str]): the location of the desired information, e.g.,
+               ["tested_variables", "variable_default", "type"]
+
+        Returns:
+           The value of the configuration value, if available, otherwise `None`.
+
+        """
+
         my_dict: ConfigurationType = self.config
         key: str
         for key in list_of_keys[:-1]:
@@ -1220,6 +1662,16 @@ class Basic:
     def merge_df_list(
         self, df_list: list[pd.core.frame.DataFrame]
     ) -> pd.core.frame.DataFrame:
+        """Merge a list of pandas DataFrames using the self.join_keys
+
+        Args:
+            df_list (list[pd.core.frame.DataFrame]): list of dataframes to be merged.
+
+        Returns:
+            pd.core.frame.DataFrame: the merged dataframe
+
+        """
+
         response: pd.core.frame.DataFrame
         if df_list:
             response = df_list[0]
@@ -1232,6 +1684,16 @@ class Basic:
         return response
 
     def lint(self) -> list[str]:
+        """Return messages that describe how the configuration is not well formed
+
+        Args:
+            None
+
+        Returns:
+            list[str]: a list of messages describing faults in the configuration
+
+        """
+
         # Note that required tested_keys and confound_keys have some fields labeled as
         # `"required": False` (which does nothing because False is the default) because
         # they must be supplied as either a "variable" or "variable_default", but need
@@ -1339,6 +1801,18 @@ class Basic:
         return [*fields, *files]
 
     def check_fields(self, schema: dict[str, Any]) -> list[str]:
+        """Top-level check that used configuration keys are permitted and required keys
+        are present.
+
+        Args:
+            schema (dict[str, Any]): Description of what keys are permitted and
+            required.
+
+        Returns:
+            list[str]: a list of messages describing faults in the configuration
+
+        """
+
         return self.recursive_check_fields([], self.config, schema)
 
     def recursive_check_fields(
@@ -1347,27 +1821,37 @@ class Basic:
         config: dict[str, Any] | list[Any],
         schema: dict[str, Any],
     ) -> list[str]:
-        # The purpose of this routine is to check that the top-level keys in `config`
-        #   and `schema` validate properly, and to recurse more deeply as appropriate.
-        # A `config` is a dict[str, Any], representing the entire YAML file or,
-        #   recursively, a part of it.
-        # A `schema` is a `dict[str, Any]` with up to four keys: "required", "keys",
-        #   "default_keys", and "values".
-        #   * The value associated with the "required" key is a `bool`.  If missing it
-        #     is interpreted as False.
-        #   * The value associated with the "keys" key is a `dict[str, schema]`, which
-        #     is one schema per key.
-        #   * The value associated with the "default_keys" key is a `schema`.  If
-        #     present, this is the schema applicable to any key that does not have a
-        #     schema within schema["keys"]
-        #   * The value associated with the "values" key is a `set[Any]`, which is the
-        #     set of legal values for the key.  If the key is absent, all values are
-        #     legal.
-        #   * "Required" will already have been checked at the top-level, but we need to
-        #     check it just before recursing to a schema from "keys" or "default_keys".
+        """Recursively called function check that used configuration keys are permitted
+        and required keys are present.
 
-        # The return value is a list of failed checks, each expressed as a warning
-        # message.
+        Args:
+            context (list[str]): list of keys we've already descended through
+            config (dict[str, Any] | list[Any]): sub-tree of the configuration
+            schema (dict[str, Any]): sub-tree of the schema
+
+        Returns:
+            list[str]: a list of messages describing faults in the configuration
+
+        The purpose of this routine is to check that the top-level keys in `config` and
+            `schema` validate properly, and to recurse more deeply as appropriate.
+        A `config` is a dict[str, Any], representing the entire YAML file or,
+            recursively, a part of it.
+        A `schema` is a `dict[str, Any]` with up to four keys: "required", "keys",
+            "default_keys", and "values".
+            * The value associated with the "required" key is a `bool`.  If missing it
+                is interpreted as False.
+            * The value associated with the "keys" key is a `dict[str, schema]`, which
+                is one schema per key.
+            * The value associated with the "default_keys" key is a `schema`.  If
+                present, this is the schema applicable to any key that does not have a
+                schema within schema["keys"]
+            * The value associated with the "values" key is a `set[Any]`, which is the
+                set of legal values for the key.  If the key is absent, all values are
+                legal.
+            * "Required" will already have been checked at the top-level, but we need to
+                check it just before recursing to a schema from "keys" or "default_keys"
+
+        """
 
         key: str
         value: Any
@@ -1413,6 +1897,18 @@ class Basic:
         return response
 
     def check_files(self, schema: dict[str, Any]) -> list[str]:
+        """Check that files and directories in the configuration exist and can be
+        accessed.
+
+        Args:
+            schema (dict[str, Any]): Description of what keys are permitted and
+                required, including fields named "filename", etc.
+
+        Returns:
+            list[str]: a list of messages describing faults in the configuration
+
+        """
+
         # For each source_directory, destination_directory, and filename check whether
         # it exists.  (Filenames may be relative to the specified directories.) For
         # table_of_filenames_and_metadata, check existence and validity.
@@ -1477,6 +1973,7 @@ class Basic:
                 ]
 
         input_raw = self.config_get(["output", "destination_directory"])
+        # TODO: Also check that destination_directory is writable
         if input_raw is None:
             response = [*response, "output.destination_directory must be supplied."]
         elif not pathlib.Path(cast(str, input_raw)).is_dir():
@@ -1484,6 +1981,7 @@ class Basic:
                 *response,
                 f"output.destination_directory {input_raw} does not exist.",
             ]
+        # TODO: Also check that destination_directory is writable
 
         return response
 
@@ -1492,6 +1990,19 @@ class Basic:
         directory: pathlib.Path | None,
         filename_raw: ConfigurationType | ConfigurationValue | None,
     ) -> list[str]:
+        """Check that a specific file exists and is readable
+
+        Args:
+            directory (pathlib.Path | None): Optional directory for relative paths
+            filename_raw (ConfigurationType | ConfigurationValue | None): location of
+                file, as a full path or a path relative to the directory.
+
+        Returns:
+        Returns:
+            list[str]: a list of messages describing faults in the configuration
+
+        """
+
         if filename_raw is None:
             return []
         filename: pathlib.Path = pathlib.Path(cast(str, filename_raw))
@@ -1509,6 +2020,21 @@ class Basic:
         filename_raw: ConfigurationType | ConfigurationValue | None,
         schema: dict[str, Any],
     ) -> list[str]:
+        """Check that the CSV file is well formed and perform a similar check on any
+        individual_filenames_and_metadata specified in the YAML file.
+
+        Args:
+            directory (pathlib.Path | None): Optional directory for relative paths
+            filename_raw (ConfigurationType | ConfigurationValue | None): location of
+                file, as a full path or a path relative to the directory.
+            schema (dict[str, Any]): Description of what keys are permitted and
+                required.
+
+        Returns:
+            list[str]: a list of messages describing faults in the configuration
+
+        """
+
         if filename_raw is None:
             return []
         filename: pathlib.Path = pathlib.Path(cast(str, filename_raw))
