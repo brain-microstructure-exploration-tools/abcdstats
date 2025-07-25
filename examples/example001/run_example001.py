@@ -12,7 +12,7 @@ import abcdstats
 
 class MyWorkflow(abcdstats.BasicWorkflow):
     def __init__(self, *, yaml_file: str) -> None:
-        super().__init__(yaml_file)
+        super().__init__(yaml_file=yaml_file)
         # Add any additional initialization here
 
     # If you wish to override any class methods in a way that changing the configuration

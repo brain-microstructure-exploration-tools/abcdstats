@@ -1,4 +1,4 @@
-filename,src_subject_id,event_name,modality,description
+filename,src_subject_id,eventname,modality,description
 gorinput0020-modality0-sub-NDARINVKMVGX7UJ_ses-baselineYear1Arm1_run-01_dwi_fa-WarpedToTemplate.nii.gz,NDAR_INVKMVGX7UJ,baseline_year_1_arm_1,fa,
 gorinput0022-modality0-sub-NDARINVTTCZ6U1F_ses-2YearFollowUpYArm1_run-01_dwi_fa-WarpedToTemplate.nii.gz,NDAR_INVTTCZ6U1F,2_year_follow_up_y_arm_1,fa,
 gorinput0024-modality0-sub-NDARINV1CV6NNKT_ses-baselineYear1Arm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz,NDAR_INV1CV6NNKT,baseline_year_1_arm_1,fa,
