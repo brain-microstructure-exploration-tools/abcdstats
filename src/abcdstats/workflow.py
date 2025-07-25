@@ -8,8 +8,10 @@ import pathlib
 from typing import Any, TypeAlias, Union, cast
 
 import nibabel as nib  # type: ignore[import-not-found,import-untyped,unused-ignore]
+import nilearn.glm  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import nilearn.maskers  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import nilearn.masking  # type: ignore[import-not-found,import-untyped,unused-ignore]
+import nilearn.mass_univariate  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import nrrd  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import numpy as np  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import numpy.typing as npt  # type: ignore[import-not-found,import-untyped,unused-ignore]
@@ -265,16 +267,18 @@ class Basic:
 
         table: pathlib.Path | None
         individuals: list[dict[str, Any]] | None
-        table, individuals = self.get_target_data_table_and_individuals()
+        table, individuals, target_directory = (
+            self.get_target_data_table_and_individuals()
+        )
 
         target_frame: pd.core.frame.DataFrame
-        target_frame = self.get_target_data_frame(table, individuals)
+        target_frame = self.get_target_data_frame(table, individuals, target_directory)
 
         return target_frame
 
     def get_target_data_table_and_individuals(
         self,
-    ) -> tuple[pathlib.Path | None, list[dict[str, Any]] | None]:
+    ) -> tuple[pathlib.Path | None, list[dict[str, Any]] | None, pathlib.Path | None]:
         """Extract information supplied in the YAML configuration file for each image
         and locate the optional CSV file that lists additional images.
 
@@ -286,6 +290,8 @@ class Basic:
             list[dict[str, Any]] | None: A list of images described in the YAML file, if
                 any.  The dict associated with an image is meta-information about the
                 image supplied in the YAML file.
+            pathlib.Path | None: source_directory to use for filenames found in the
+                table (once we read it).
 
         """
 
@@ -322,17 +328,15 @@ class Basic:
         # Prepend directory to table location if appropriate
         if table is not None and directory is not None:
             table = directory / table
-        # Prepend directory to individual filenames if appropriate
-        if individuals is not None and directory is not None:
-            individuals = [
-                i | {"filename": str(directory / pathlib.Path(i["filename"]))}
-                for i in individuals
-            ]
+        # We will prepend directory to entries within table and individuals later
 
-        return table, individuals
+        return table, individuals, directory
 
     def get_target_data_frame(
-        self, table: pathlib.Path | None, individuals: list[dict[str, Any]] | None
+        self,
+        table: pathlib.Path | None,
+        individuals: list[dict[str, Any]] | None,
+        target_directory: pathlib.Path | None,
     ) -> pd.core.frame.DataFrame:
         """Combine images from YAML and CSV sources, filter on modality (e.g., "fa" or
         "md") and check that there are no duplicates.
@@ -342,6 +346,8 @@ class Basic:
             individuals (list[dict[str, Any]] | None): A list of images described in the
                 YAML file, if any.  The dict associated with an image is
                 meta-information about the image supplied in the YAML file.
+            target_directory: A directory to start with, for relative paths within table
+                and individuals.
 
         Returns:
             pd.core.frame.DataFrame: Combined table of meta-information about all
@@ -360,6 +366,11 @@ class Basic:
         if len(target_frame) == 0:
             mesg = "No target images were supplied, via table or individuals."
             raise ValueError(mesg)
+
+        if target_directory is not None:
+            target_frame["filename"] = target_frame["filename"].apply(
+                lambda filename: str(target_directory / pathlib.Path(filename))
+            )
 
         # Keep only those images that are the `desired_modality`.
         m_raw: ConfigurationType | ConfigurationValue | None
@@ -640,6 +651,7 @@ class Basic:
             variable: self.handle_variable_config(variable, var_config, df_by_file)
             for variable, var_config in variables.items()
         }
+        # Add newly created variables
         variables = {
             **variables,
             **{
@@ -686,7 +698,7 @@ class Basic:
         var_type: str
         var_type = var_config["type"]
         df_var: pd.core.frame.DataFrame
-        df_var = df_by_file[var_config["filename"]][[*self.join_keys, variable]]
+        df_var = df_by_file[var_config["filename"]][[*self.join_keys, variable]].copy()
 
         # Apply convert, handle_missing and is_missing
         for src, dst in convert.items():
@@ -737,6 +749,12 @@ class Basic:
                 )
                 raise ValueError(mesg)
         if handle_missing == "separately":
+            if var_type == "ordered":
+                mesg = (
+                    "We do not currently handle the case that"
+                    ' handle_missing == "separately" and var_type == "ordered".'
+                )
+                raise ValueError(mesg)
             # We want to use unused distinct values for each type of "missing".  We add
             # unique values so the pd.get_dummies call creates a one-hot column for each
             # missing value.
@@ -748,23 +766,17 @@ class Basic:
                 df_var.loc[df_var[variable] == is_missing[0], variable] = range(
                     unused_numeric_value, unused_numeric_value + number_needed_values
                 )
-            if var_type == "ordered":
-                mesg = (
-                    "We do not currently handle the case that"
-                    ' handle_missing == "separately" and var_type == "ordered".'
-                )
-                raise ValueError(mesg)
 
         # Convert categorical data to a multicolumn one-hot representation.  Note that
         # setting drop_first=True will drop one of the categories; and in such a case,
         # we should drop the single, "missing" category if there is such a thing.
 
+        df_var_columns: set[str]
+        df_var_columns = set(df_var.columns)
         if var_type == "unordered":
             # Note: if an unordered variable has high perplexity but its individual
             # categories (in one-hot representation) do not, the categories with low
             # perplexity will ultimately be removed.
-            df_var_columns: set[str]
-            df_var_columns = set(df_var.columns)
             df_var = pd.get_dummies(
                 df_var, dummy_na=True, columns=[variable], drop_first=False
             )
@@ -885,7 +897,11 @@ class Basic:
             )
 
             df_intercept_by_var: dict[str, pd.core.frame.DataFrame]
-            df_intercept_by_var = {v: df_by_var[v] for v in has["intercept"]}
+            # df_by_var is indexed by unconverted variables but includes columns for the
+            # converted variables (e.g. added one-hot or slope columns).
+            df_intercept_by_var = {
+                k: v for k, v in df_by_var.items() if k in has["intercept"]
+            }
 
             slope: str = "_slope"
             bad_names: set[str]
@@ -925,8 +941,8 @@ class Basic:
         tested_variables: dict[str, dict[str, Any]],
         tested_frame: pd.core.frame.DataFrame,
         target_frame: pd.core.frame.DataFrame,
-        confound_variables: dict[str, dict[str, Any]],
-        confound_frame: pd.core.frame.DataFrame,
+        confounding_variables: dict[str, dict[str, Any]],
+        confounding_frame: pd.core.frame.DataFrame,
     ) -> tuple[
         pd.core.frame.DataFrame,
         pd.core.frame.DataFrame,
@@ -946,9 +962,9 @@ class Basic:
             tested_frame (pd.core.frame.DataFrame): values for the tested variables
             target_frame (pd.core.frame.DataFrame): (lazy) values for the target
                 variables.
-            confound_variables (dict[str, dict[str, Any]]): meta-information about the
-                confounding variables.
-            confound_frame (pd.core.frame.DataFrame): values for the confounding
+            confounding_variables (dict[str, dict[str, Any]]): meta-information about
+                the confounding variables.
+            confounding_frame (pd.core.frame.DataFrame): values for the confounding
                 variables.
 
         Returns:
@@ -969,48 +985,55 @@ class Basic:
         # vs. MD).
         all_frame: pd.core.frame.DataFrame
         all_frame = tested_frame.merge(
-            confound_frame, on=self.join_keys, how="inner", validate="one_to_one"
-        ).merge(target_frame, on=self.join_keys, how="inner", validate="one_to_many")
-
-        all_frame = all_frame.dropna()
+            confounding_frame, on=self.join_keys, how="inner", validate="one_to_one"
+        )
+        all_frame = all_frame.merge(
+            target_frame, on=self.join_keys, how="inner", validate="one_to_many"
+        )
+        # TODO: Do we want `all_frame = all_frame.dropna()` here?
 
         # Now that we have determined which rows are actually going to be processed,
         # let's remove columns that do not meet the perplexity requirement.
         variables: dict[str, dict[str, Any]]
-        variables = {**tested_variables, **confound_variables}
+        variables = {**tested_variables, **confounding_variables}
         all_frame = self.enforce_perplexity(all_frame, variables)
 
         # Recreate the input frames, respecting any selection, any replication, and any
-        # reordering of rows to produce all_frame
-        tested_frame = all_frame[tested_frame.columns]
-        tested_keys: set[str]
-        tested_keys = set(tested_frame.columns) - set(self.join_keys)
+        # reordering of rows to produce all_frame, and respecting any dropping of
+        # columns.
+        tested_frame = all_frame[all_frame.columns.intersection(tested_frame.columns)]
+        tested_keys: list[str]
+        tested_keys = list(set(tested_frame.columns) - set(self.join_keys))
         tested_array: npt.NDArray[np.float64]
         tested_array = tested_frame[tested_keys].to_numpy(dtype=np.float64)
 
-        target_frame = all_frame[target_frame.columns]
-        target_keys: set[str]
-        target_keys = set(target_frame.columns) - set(self.join_keys)
+        target_frame = all_frame[all_frame.columns.intersection(target_frame.columns)]
+        target_keys: list[str]
+        target_keys = list(set(target_frame.columns) - set(self.join_keys))
         target_images: list[nib.filebasedimages.FileBasedImage]
         target_affine: npt.NDArray[np.float64]
         target_images, target_affine = self.get_target_data_voxels_and_affine(
             target_frame[target_keys]
         )
 
-        confound_frame = all_frame[confound_frame.columns]
-        confound_keys: set[str]
-        confound_keys = set(confound_frame.columns) - set(self.join_keys)
-        confound_array: npt.NDArray[np.float64]
-        confound_array = confound_frame[confound_keys].to_numpy(dtype=np.float64)
+        confounding_frame = all_frame[
+            all_frame.columns.intersection(confounding_frame.columns)
+        ]
+        confounding_keys: list[str]
+        confounding_keys = list(set(confounding_frame.columns) - set(self.join_keys))
+        confounding_array: npt.NDArray[np.float64]
+        confounding_array = confounding_frame[confounding_keys].to_numpy(
+            dtype=np.float64
+        )
 
         return (
             tested_frame,
             target_frame,
-            confound_frame,
+            confounding_frame,
             tested_array,
             target_images,
             target_affine,
-            confound_array,
+            confounding_array,
         )
 
     def get_source_mask(
@@ -1240,7 +1263,6 @@ class Basic:
 
         """
 
-        mesg: str
         """
         TODO: Maybe we'll need this later:
           number_values: int
@@ -1249,9 +1271,16 @@ class Basic:
           number_iterations = math.ceil(number_values / max_values_per_iteration)
         """
 
+        # TODO: Verify that masker is doing what we hope it is doing
+        # TODO: If masker is correct except for the number of channels, can we recover?
         target_vars: npt.NDArray[np.float64]
-        # Avoid img.get_fdata() so that we have just one copy of the voxel data
-        target_vars = np.stack([np.asanyarray(img.dataobj) for img in target_images])
+        target_vars = (
+            masker.fit_transform(target_images)
+            if masker is not None
+            else np.stack(
+                [np.asanyarray(img.dataobj).reshape((-1,)) for img in target_images]
+            )
+        )
 
         """
         Shapes of the numpy arrays are
@@ -1259,14 +1288,6 @@ class Basic:
           target_vars.shape == (number_images, *voxels.shape)
           confounding_vars.shape == (number_images, number_confounding_vars)
         """
-
-        # TODO: If masker is correct except for the number of channels, can we recover?
-        if masker is not None and target_vars.shape[1:] != masker.mask_img_.shape:
-            mesg = (
-                f"The shape of each target image {target_vars.shape[1:]} and the"
-                f" shape of the mask {masker.mask_img_.shape} must match."
-            )
-            raise ValueError(mesg)
 
         # Note that each can also be `None`
         perm_ols_spec: dict[str, type] = {
@@ -1282,7 +1303,6 @@ class Basic:
         }
 
         # Call nilearn.mass_univariate.permuted_ols.
-        # TODO: Verify that masker is doing what we hope it is doing
         other_parameters: dict[str, Any] = {
             k: v
             for k, v in cast(
@@ -1295,32 +1315,51 @@ class Basic:
             tested_vars=tested_vars,  # ksads
             target_vars=target_vars,  # voxels
             confounding_vars=confounding_vars,  # e.g., interview_age
-            masker=masker,
             **other_parameters,
         )
+        # Use masker.inverse_transform on some individual values within
+        # permuted_ols_response to restore the original shape.
+        if masker is not None:
+            # Two dimensional arrays where the second shape parameter is n_descriptors
+            descriptors_keys: list[str]
+            descriptors_keys = [
+                "t",
+                "logp_max_t",
+                "tfce",
+                "logp_max_tfce",
+                "size",
+                "logp_max_size",
+                "mass",
+                "logp_max_mass",
+            ]
+            permuted_ols_response = {
+                **permuted_ols_response,
+                **{
+                    key: masker.inverse_transform(value)
+                    for key, value in permuted_ols_response.items()
+                    if key in descriptors_keys
+                },
+            }
 
         # In each case, compute the regression coefficient that yielded the t-stat and
         # p-value reported by permuted_ols
-        bool_mask: npt.NDArray[bool]
-        bool_mask = (
-            np.asanyarray(masker.mask_img_.dataobj, dtype=bool)
-            if masker is not None
-            else np.ones(target_vars.shape[1:], dtype=bool)
-        )
-        kept_target_vars: npt.NDArray[np.float64]
-        kept_target_vars = target_vars[:, bool_mask]
-
-        glm_ols_response: npt.NDArray = np.zeros(target_vars.shape, dtype=np.float64)
-        glm_ols_response[:, bool_mask] = np.vstack(
+        glm_ols_response: npt.NDArray[np.float64]
+        glm_ols_response = np.vstack(
             [
                 nilearn.glm.OLSModel(
                     np.hstack((tested_var.reshape(-1, 1), confounding_vars))
                 )
-                .fit(kept_target_vars)
+                .fit(target_vars)
                 .theta[0, :]
                 for tested_var in tested_vars.T
             ]
         )
+
+        if masker is not None:
+            glm_ols_response = np.asanyarray(
+                masker.inverse_transform(glm_ols_response).dataobj, dtype=np.float64
+            )
+            # TODO: Shape is (140, 140, 140, 18).  Transpose dimensions accordingly
 
         return permuted_ols_response, glm_ols_response
 
@@ -1354,6 +1393,8 @@ class Basic:
 
         """
 
+        # TODO: At some point before now, make sure logp_max_t is a npt.NDArray rather
+        # than an image object.
         return [
             self.compute_local_maxima_for_variable(
                 variable, segmentation_voxels, segmentation_map, background_index
@@ -1694,10 +1735,10 @@ class Basic:
 
         """
 
-        # Note that required tested_keys and confound_keys have some fields labeled as
-        # `"required": False` (which does nothing because False is the default) because
-        # they must be supplied as either a "variable" or "variable_default", but need
-        # not be both.
+        # Note that required tested_keys and confounding_keys have some fields labeled
+        # as `"required": False` (which does nothing because False is the default)
+        # because they must be supplied as either a "variable" or "variable_default",
+        # but need not be both.
         # TODO: Can we enforce this "either or" appropriately?
         tested_keys = {
             "filename": {"required": False},
@@ -1710,7 +1751,7 @@ class Basic:
             "description": {},
             "internal_name": {},
         }
-        confound_keys = {
+        confounding_keys = {
             **tested_keys,
             "longitudinal": {
                 "required": False,
@@ -1743,7 +1784,7 @@ class Basic:
                                 "keys": {
                                     "filename": {"required": True},
                                     "src_subject_id": {"required": True},
-                                    "event_name": {
+                                    "eventname": {
                                         "required": True,
                                         "values": {
                                             "baseline_year_1_arm_1",
@@ -1774,10 +1815,10 @@ class Basic:
                     "required": True,
                     "keys": {
                         "source_directory": {},
-                        "variable_default": {"keys": confound_keys},
+                        "variable_default": {"keys": confounding_keys},
                         "variable": {
                             "required": True,
-                            "default_keys": {"keys": confound_keys},
+                            "default_keys": {"keys": confounding_keys},
                         },
                     },
                 },
@@ -1856,7 +1897,7 @@ class Basic:
         key: str
         value: Any
         new_context: list[str]
-        new_values: set[Any]
+        new_values: set[Any] | None
         new_schema: dict[str, Any]
         response: list[str] = []
         config = (
@@ -1867,8 +1908,8 @@ class Basic:
         for key, value in config.items():
             new_context = [*context, key]
             # If "values" is present then check that value is valid
-            new_values = schema.get("values", {value})
-            if value not in new_values:
+            new_values = schema.get("values")
+            if new_values is not None and value not in new_values:
                 response = [
                     *response,
                     f'Value {value!r} of key {".".join(new_context)} must be one of'
@@ -2048,7 +2089,7 @@ class Basic:
         expected: list[str] = [
             "filename",
             "src_subject_id",
-            "event_name",
+            "eventname",
             "modality",
             "description",
         ]

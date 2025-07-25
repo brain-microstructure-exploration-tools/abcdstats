@@ -186,15 +186,15 @@ The YAML configuration file is organized into four sections as follows:
     processed, such as `fa` or `md`.
   - **table_of_filenames_and_metadata**: the file location for the CSV file that
     lists target images to be analyzed. The columns of the CSV file are
-    `filename`, `src_subject_id`, `event_name`, `modality`, and `description`,
-    as described next.
+    `filename`, `src_subject_id`, `eventname`, `modality`, and `description`, as
+    described next.
   - **individual_filenames_and_metadata**: a way to specify target images in the
     YAML file (rather than in the CSV file).
     - **filename**: the location of the .nii.gz file containing the voxel
       intensities
     - **src_subject_id**: the ABCD subject ID associated with this file (with
       prefix `NDAR_`).
-    - **event_name**: the ABCD event_name associated with this file (such as
+    - **eventname**: the ABCD eventname associated with this file (such as
       `2_year_follow_up_y_arm_1`).
     - **modality**: Such as `fa` or `md`
     - **description**: an optional, user-supplied string
