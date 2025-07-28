@@ -89,6 +89,9 @@ class Basic:
                     "threshold": None,
                     "output_type": "dict",
                 },
+                "images": {
+                    "gamma": 1.0,
+                },
             },
         }
 
@@ -245,13 +248,23 @@ class Basic:
         # For each tested variable, for each local maximum, output coordinates and a
         # description
         local_maxima_description: list[list[tuple[list[int], str]]]
-        local_maxima_description = self.compute_local_maxima(  # noqa: F841
+        local_maxima_description = self.compute_local_maxima(
             logp_max_t=logp_max_t,
             segmentation_voxels=segmentation_voxels,
             segmentation_map=segmentation_map,
             background_index=background_index,
         )
-        # TODO: Invoke matplotlib
+
+        self.save_output(
+            template_voxels,
+            template_affine,
+            segmentation_voxels,
+            segmentation_header,
+            segmentation_map,
+            permuted_ols,
+            glm_ols,
+            local_maxima_description,
+        )
 
     def get_target_data(self) -> pd.core.frame.DataFrame:
         """Read the meta-information about the target data (voxel intensities).  This is used for filtering and, later, for retrieving the needed data.
@@ -662,6 +675,7 @@ class Basic:
         }
         df_by_var: dict[str, pd.core.frame.DataFrame]
         df_by_var = {variable: value[1] for variable, value in by_var.items()}
+
         return variables, df_by_var
 
     def handle_variable_config(
@@ -702,7 +716,7 @@ class Basic:
 
         # Apply convert, handle_missing and is_missing
         for src, dst in convert.items():
-            df_var[variable] = df_var[variable].replace(src, dst)
+            df_var[variable] = self.pandas_replace(df_var[variable], src, dst)
 
         # Meaning of `handle_missing`:
         # * "invalidate" (throw away scan if it has this field missing)
@@ -717,7 +731,9 @@ class Basic:
             # Prior to handling the separate cases, make all missing values equal to
             # is_missing[0]
             for val in is_missing[1:]:
-                df_var[variable] = df_var[variable].replace(val, is_missing[0])
+                df_var[variable] = self.pandas_replace(
+                    df_var[variable], val, is_missing[0]
+                )
         # Process each handle_missing case
         if handle_missing == "invalidate" and len(is_missing) > 0:
             # Remove rows for missing values
@@ -777,8 +793,14 @@ class Basic:
             # Note: if an unordered variable has high perplexity but its individual
             # categories (in one-hot representation) do not, the categories with low
             # perplexity will ultimately be removed.
-            df_var = pd.get_dummies(
-                df_var, dummy_na=True, columns=[variable], drop_first=False
+            df_var = (
+                pd.get_dummies(
+                    df_var, dummy_na=True, columns=[variable], drop_first=False
+                )
+                if df_var[variable].isna().any()
+                else pd.get_dummies(
+                    df_var, dummy_na=False, columns=[variable], drop_first=False
+                )
             )
 
         # Each newly created column, if any, is a new variable, so prepare an entry for
@@ -1332,7 +1354,10 @@ class Basic:
                 "mass",
                 "logp_max_mass",
             ]
-            # TODO: Verify that the spatial dimensions haven't been reversed
+            # Note that masker.inverse_transform() returns an object that has the
+            # spatial dimensions first and then the image index; we correct for that.
+            # TODO: Verify that the order of the spatial dimensions is as expected;
+            # e.g. they haven't been reversed.
             permuted_ols_response = {
                 **permuted_ols_response,
                 **{
@@ -1359,7 +1384,10 @@ class Basic:
         )
 
         if masker is not None:
-            # TODO: Verify that the spatial dimensions haven't been reversed
+            # Note that masker.inverse_transform() returns an object that has the
+            # spatial dimensions first and then the image index; we correct for that.
+            # TODO: Verify that the order of the spatial dimensions is as expected;
+            # e.g. they haven't been reversed.
             glm_ols_response = np.asanyarray(
                 masker.inverse_transform(glm_ols_response).dataobj, dtype=np.float64
             ).transpose(3, 0, 1, 2)
@@ -1396,8 +1424,6 @@ class Basic:
 
         """
 
-        # TODO: At some point before now, make sure logp_max_t is a npt.NDArray rather
-        # than an image object.
         return [
             self.compute_local_maxima_for_variable(
                 variable, segmentation_voxels, segmentation_map, background_index
@@ -1680,6 +1706,22 @@ class Basic:
         ]
 
         return "\n".join(description)
+
+    def save_output(
+        self,
+        template_voxels: nib.filebasedimages.FileBasedImage | None,  # noqa: ARG002
+        template_affine: npt.NDArray[np.float64] | None,  # noqa: ARG002
+        segmentation_voxels: npt.NDArray[np.float64 | int] | None,  # noqa: ARG002
+        segmentation_header: collections.OrderedDict[str, Any] | None,  # noqa: ARG002
+        segmentation_map: dict[int, str] | None,  # noqa: ARG002
+        permuted_ols: dict[str, npt.NDArray[np.float64]],
+        glm_ols: npt.NDArray[np.float64],  # noqa: ARG002
+        local_maxima_description: list[list[tuple[list[int], str]]],  # noqa: ARG002
+    ) -> None:
+        # TODO: Write docstring
+
+        logp_max_t: npt.NDArray[np.float64] = permuted_ols["logp_max_t"]  # noqa: F841
+        # TODO: Write me
 
     def config_get(
         self, list_of_keys: list[str]
@@ -2017,7 +2059,6 @@ class Basic:
                 ]
 
         input_raw = self.config_get(["output", "destination_directory"])
-        # TODO: Also check that destination_directory is writable
         if input_raw is None:
             response = [*response, "output.destination_directory must be supplied."]
         elif not pathlib.Path(cast(str, input_raw)).is_dir():
@@ -2112,3 +2153,38 @@ class Basic:
         )
         # All is good
         return []
+
+    def pandas_replace(
+        self,
+        series: pd.core.series.Series,
+        src: Any,
+        dst: Any,
+    ) -> pd.core.series.Series:
+        """Implement a panda Series.replace command such that replacement occurs if
+        values are numerically equal, even if they are not of the same type.
+
+        Args:
+            series (pd.core.series.Series): The pandas series on which to perform
+                the replace operation.
+            src (Any): the value being replaced.  If it is numeric then any value that
+                is numerically equivalent will be replaced regardless of its type in
+                (str, bool, int, float, np.int64, np.float64).
+            dst (Any): the replacement value
+
+        Returns:
+            pd.core.series.Series: the modified pandas Series.
+
+        """
+
+        series = series.replace(src, dst)
+        # Convert even if the type is different
+        for t in (str, bool, int, float, np.int64, np.float64):
+            try:
+                if float(src) == float(t(src)) or (
+                    math.isnan(float(src)) and math.isnan(float(t(src)))
+                ):
+                    series = series.replace(t(src), dst)
+            except (TypeError, ValueError):
+                pass
+
+        return series
