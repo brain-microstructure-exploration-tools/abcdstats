@@ -80,7 +80,7 @@ class Basic:
                 },
                 "permuted_ols": {
                     "model_intercept": True,
-                    "n_perm": 10000,
+                    "n_perm": 100,  # TODO: Restore me to 10000 when testing is done
                     "two_sided_test": True,
                     "random_state": None,
                     "n_jobs": -1,  # All available
@@ -1332,10 +1332,13 @@ class Basic:
                 "mass",
                 "logp_max_mass",
             ]
+            # TODO: Verify that the spatial dimensions haven't been reversed
             permuted_ols_response = {
                 **permuted_ols_response,
                 **{
-                    key: masker.inverse_transform(value)
+                    key: np.asanyarray(
+                        masker.inverse_transform(value).dataobj, dtype=np.float64
+                    ).transpose(3, 0, 1, 2)
                     for key, value in permuted_ols_response.items()
                     if key in descriptors_keys
                 },
@@ -1356,10 +1359,10 @@ class Basic:
         )
 
         if masker is not None:
+            # TODO: Verify that the spatial dimensions haven't been reversed
             glm_ols_response = np.asanyarray(
                 masker.inverse_transform(glm_ols_response).dataobj, dtype=np.float64
-            )
-            # TODO: Shape is (140, 140, 140, 18).  Transpose dimensions accordingly
+            ).transpose(3, 0, 1, 2)
 
         return permuted_ols_response, glm_ols_response
 
