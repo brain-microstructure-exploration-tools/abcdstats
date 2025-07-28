@@ -1884,8 +1884,8 @@ filenames_and_metadata = [
 
 # Write out the information in the YAML file or in the CSV file or some of each, but
 # not both
-yaml_filename: str = "example001.yaml"
-csv_filename: str = "/home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcdstats/examples/example001/example001.csv"
+yaml_filename: str = "example002.yaml"
+csv_filename: str = "/home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcdstats/examples/example002/example002.csv"
 
 yaml_images: list[dict[str, str]]
 yaml_images = filenames_and_metadata[:10]

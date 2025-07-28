@@ -20,9 +20,9 @@ class MyWorkflow(abcdstats.BasicWorkflow):
 
 
 # Configure the BasicWorkflow: Which inputs, what processing, which outputs?
-myWorkflow: MyWorkflow = MyWorkflow(yaml_file="example001.yaml")
+myWorkflow: MyWorkflow = MyWorkflow(yaml_file="example002.yaml")
 # Alternatively, construct with no arguments and then invoke
-#   myWorkflow.configure(yaml_file="example001.yaml")
+#   myWorkflow.configure(yaml_file="example002.yaml")
 
 # Now that it is configured, run it.
 myWorkflow.run()
