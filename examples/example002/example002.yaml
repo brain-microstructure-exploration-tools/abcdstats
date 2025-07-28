@@ -26,7 +26,7 @@ tested_variables:
 target_variables:
   source_directory: /data2/ABCD/gor-images/coregistered-images
   desired_modality: fa
-  table_of_filenames_and_metadata: /home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcdstats/examples/example001/example001.csv
+  table_of_filenames_and_metadata: /home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcdstats/examples/example002/example002.csv
   individual_filenames_and_metadata:
     - filename: gorinput0000-modality0-sub-NDARINV5U642ALM_ses-2YearFollowUpYArm1_run-concatenated_dwi_fa-WarpedToTemplate.nii.gz
       src_subject_id: NDAR_INV5U642ALM
