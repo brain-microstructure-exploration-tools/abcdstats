@@ -1884,29 +1884,33 @@ filenames_and_metadata = [
 
 # Write out the information in the YAML file or in the CSV file or some of each, but
 # not both
-yaml_filename: str = "example002.yaml"
-csv_filename: str = "/home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcdstats/examples/example002/example002.csv"
+yaml_filename: str = "example001.yaml"
+csv_filename: str = "/home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcdstats/examples/example001/example001.csv"
 
 yaml_images: list[dict[str, str]]
-yaml_images = filenames_and_metadata[:10]
+yaml_images = filenames_and_metadata[:0]
 csv_images: list[dict[str, str]]
-csv_images = filenames_and_metadata[10:]
+csv_images = filenames_and_metadata[0:]
 
 sample_configuration: ConfigurationType = {
     "version": "1.0",
     "tested_variables": {
-        "source_directory": "/data2/ABCD/abcd-5.0-tabular-data-extracted",
+        "source_directory": "/data2/ABCD/abcd-5.0-tabular-data-extracted/core",
         "variable_default": {
-            "filename": "core/mental-health/mh_y_ksads_ss.csv",
+            "filename": "mental-health/mh_y_ksads_ss.csv",
             "convert": {"555": np.nan, "888": 0},
             "handle_missing": "invalidate",
             "type": "unordered",
             "is_missing": ["", np.nan],
         },
         "variable": {
+            "demo_gender_id_v2": {
+                "filename": "gender-identity-sexual-health/gish_p_gi.csv",
+                "description": "Child's current gender identity",
+                "convert": {"777": "", "999": ""},
+            },
             "ksads_1_187_t": {
-                "description": "Symptom - No two month symptom-free interval, Present",
-                "internal_name": "ksads_1_187_t",
+                "description": "Symptom - No two month symptom-free interval, Present"
             },
             "ksads_1_188_t": {
                 "description": "Symptom - No two month symptom-free interval, Past"
@@ -1914,6 +1918,33 @@ sample_configuration: ConfigurationType = {
             "ksads_22_142_t": {"description": "Symptom - Insomnia, Past"},
             "ksads_22_970_t": {"description": "Diagnosis - SLEEP PROBLEMS, Past"},
             "ksads_2_11_t": {"description": "Symptom - Explosive Irritability, Past"},
+            "ksads_2_222_t": {"description": "Symptom - Lasting at least 4 days, Past"},
+            "ksads_1_184_t": {
+                "description": "Symptom - Impairment in functioning due to depression, Past"
+            },
+            "ksads_1_2_t": {"description": "Symptom - Depressed Mood, Past"},
+            "ksads_2_13_t": {"description": "Symptom - Decreased Need for Sleep, Past"},
+            "ksads_1_6_t": {"description": "Symptom - Anhedonia, Past"},
+            "ksads_1_160_t": {"description": "Symptom - Fatigue, Past"},
+            "ksads_1_162_t": {
+                "description": "Symptom - Concentration Disturbance, Past"
+            },
+            "ksads_2_220_t": {
+                "description": "Symptom - Lasting at least one week, Past"
+            },
+            "ksads_1_156_t": {"description": "Symptom - Insomnia when depressed, Past"},
+            "ksads_1_174_t": {
+                "description": "Symptom - Psychomotor Agitation in Depressive Disorder, Past"
+            },
+            "ksads_2_216_t": {
+                "description": "Symptom - Impairment in functioning due to bipolar, Past"
+            },
+            "ksads_2_208_t": {
+                "description": "Symptom - Psychomotor Agitation in Bipolar Disorder, Past"
+            },
+            "ksads_2_206_t": {"description": "Symptom - Increased Energy, Past"},
+            "ksads_22_141_t": {"description": "Symptom - Insomnia, Present"},
+            "ksads_22_969_t": {"description": "Diagnosis - SLEEP PROBLEMS, Present"},
         },
     },
     "target_variables": {
@@ -1942,21 +1973,8 @@ sample_configuration: ConfigurationType = {
         "variable": {
             "interview_age": {
                 "filename": "abcd-general/abcd_y_lt.csv",
-                "internal_name": "interview_age",
                 "type": "ordered",
-                "longitudinal": ["intercept", "slope", "time"],
-            },
-            "site_id_l": {
-                "filename": "abcd-general/abcd_y_lt.csv",
-                "handle_missing": "together",
-            },
-            "demo_gender_id_v2": {
-                "filename": "gender-identity-sexual-health/gish_p_gi.csv",
-                "convert": {"777": "", "999": ""},
-            },
-            "rel_family_id": {
-                "filename": "abcd-general/abcd_y_lt.csv",
-                "handle_missing": "together",
+                "longitudinal": ["intercept"],
             },
         },
     },
