@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import collections
 import copy
+import itertools
 import math
 import os
 import pathlib
 from typing import Any, TypeAlias, Union, cast
 
+import matplotlib as mpl  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import nibabel as nib  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import nilearn.glm  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import nilearn.maskers  # type: ignore[import-not-found,import-untyped,unused-ignore]
@@ -22,8 +24,6 @@ import yaml  # type: ignore[import-not-found,import-untyped,unused-ignore]
 BasicValue: TypeAlias = bool | int | float | str | None
 ConfigurationValue: TypeAlias = BasicValue | list[Any]
 ConfigurationType: TypeAlias = dict[str, Union[ConfigurationValue, "ConfigurationType"]]
-
-# TODO: Break up long functions if there are meaningful subfunctions
 
 
 class Basic:
@@ -89,9 +89,7 @@ class Basic:
                     "threshold": None,
                     "output_type": "dict",
                 },
-                "images": {
-                    "gamma": 1.0,
-                },
+                "images": {"gamma": 1.0},
             },
         }
 
@@ -160,7 +158,6 @@ class Basic:
         # Validate the supplied YAML file
         warnings: list[str] = self.lint()
         if warnings:
-            # TODO: Log these instead of print?
             print("\n".join(warnings))  # noqa: T201
 
         # Fetch, check, assemble, and clean the data as directed by the YAML file.
@@ -247,8 +244,9 @@ class Basic:
         # Process output to compute local maxima.
         # For each tested variable, for each local maximum, output coordinates and a
         # description
-        local_maxima_description: list[list[tuple[list[int], str]]]
+        local_maxima_description: dict[str, list[tuple[list[int], str]]]
         local_maxima_description = self.compute_local_maxima(
+            tested_names=list(tested_frame.columns),
             logp_max_t=logp_max_t,
             segmentation_voxels=segmentation_voxels,
             segmentation_map=segmentation_map,
@@ -256,18 +254,19 @@ class Basic:
         )
 
         self.save_output(
-            template_voxels,
-            template_affine,
-            segmentation_voxels,
-            segmentation_header,
-            segmentation_map,
-            permuted_ols,
-            glm_ols,
-            local_maxima_description,
+            template_voxels=template_voxels,
+            affine=template_affine,
+            segmentation_voxels=segmentation_voxels,
+            segmentation_header=segmentation_header,
+            segmentation_map=segmentation_map,
+            permuted_ols=permuted_ols,
+            glm_ols=glm_ols,
+            local_maxima_description=local_maxima_description,
         )
 
     def get_target_data(self) -> pd.core.frame.DataFrame:
-        """Read the meta-information about the target data (voxel intensities).  This is used for filtering and, later, for retrieving the needed data.
+        """Read the meta-information about the target data (voxel intensities).  This is
+        used for filtering and, later, for retrieving the needed data.
 
         Args:
             None
@@ -464,10 +463,10 @@ class Basic:
     def get_tested_data(
         self,
     ) -> tuple[dict[str, dict[str, Any]], pd.core.frame.DataFrame]:
-        """Fetch tested data (KSADS diagnoses).  Note that the variables returned may not
-        exactly match the requested variables.  For example, an unordered variable (such
-        as one that uses integers to represent different categories) will be one-hot
-        converted into multiple variables.
+        """Fetch tested data (KSADS diagnoses).  Note that the variables returned may
+        not exactly match the requested variables.  For example, an unordered variable
+        (such as one that uses integers to represent different categories) will be
+        one-hot converted into multiple variables.
 
         Args:
             None
@@ -1012,7 +1011,10 @@ class Basic:
         all_frame = all_frame.merge(
             target_frame, on=self.join_keys, how="inner", validate="one_to_many"
         )
-        # TODO: Do we want `all_frame = all_frame.dropna()` here?
+        # TODO: Do we want `all_frame = all_frame.dropna()` here?  Although convert may
+        # already have converted all NaNs that we wish to retain, it is also the case
+        # that it might not have.
+        all_frame = all_frame.dropna()
 
         # Now that we have determined which rows are actually going to be processed,
         # let's remove columns that do not meet the perplexity requirement.
@@ -1285,16 +1287,18 @@ class Basic:
 
         """
 
-        """
-        TODO: Maybe we'll need this later:
-          number_values: int
-          number_values = sum([math.prod(img.shape) for img in source_images_voxels])
-          max_values_per_iteration: int = 1_000_000_000
-          number_iterations = math.ceil(number_values / max_values_per_iteration)
-        """
-
         # TODO: Verify that masker is doing what we hope it is doing
-        # TODO: If masker is correct except for the number of channels, can we recover?
+
+        # TODO: If masker is correct except for the number of channels (aka colors), can
+        # we recover?
+
+        # TODO: It *might* be the case that the `masker` parameter for permuted_ols can
+        # be supplied and it will call fit_transform(target_images) and later
+        # inverse_transform(logp_max_t) on our behalf; so we wouldn't do either of those
+        # in our code.  However, a downside is that it may be the case that target_vars
+        # would have to be supplied as all voxels of all images, in memory as a numpy
+        # array rather than as a list of nib.filebasedimages.FileBasedImage that can be
+        # loaded lazily / one at a time.
         target_vars: npt.NDArray[np.float64]
         target_vars = (
             masker.fit_transform(target_images)
@@ -1307,7 +1311,7 @@ class Basic:
         """
         Shapes of the numpy arrays are
           tested_vars.shape == (number_images, number_ksads)
-          target_vars.shape == (number_images, *voxels.shape)
+          target_vars.shape == (number_images, number_of_good_voxels)
           confounding_vars.shape == (number_images, number_confounding_vars)
         """
 
@@ -1354,10 +1358,13 @@ class Basic:
                 "mass",
                 "logp_max_mass",
             ]
-            # Note that masker.inverse_transform() returns an object that has the
-            # spatial dimensions first and then the image index; we correct for that.
-            # TODO: Verify that the order of the spatial dimensions is as expected;
-            # e.g. they haven't been reversed.
+            # Note: masker.inverse_transform() returns an object that has the spatial
+            # dimensions first and then the image index; we correct for that.
+
+            # Note: permuted_ols_response[any_key].flags['F_CONTIGUOUS'] might be True
+            # -- this is common for nibabel.nifti1.Nifti1Image.dataobj[:, :, :].  So, if
+            # the data is to be sliced then it might be best as [:, :, z] (rather than
+            # as [x, :, :]).
             permuted_ols_response = {
                 **permuted_ols_response,
                 **{
@@ -1386,8 +1393,6 @@ class Basic:
         if masker is not None:
             # Note that masker.inverse_transform() returns an object that has the
             # spatial dimensions first and then the image index; we correct for that.
-            # TODO: Verify that the order of the spatial dimensions is as expected;
-            # e.g. they haven't been reversed.
             glm_ols_response = np.asanyarray(
                 masker.inverse_transform(glm_ols_response).dataobj, dtype=np.float64
             ).transpose(3, 0, 1, 2)
@@ -1397,11 +1402,12 @@ class Basic:
     def compute_local_maxima(
         self,
         *,
+        tested_names: list[str],
         logp_max_t: npt.NDArray[np.float64],
         segmentation_voxels: npt.NDArray[np.float64 | int] | None,
         segmentation_map: dict[int, str] | None,
         background_index: int | None,
-    ) -> list[list[tuple[list[int], str]]]:
+    ) -> dict[str, list[tuple[list[int], str]]]:
         """For each tested variable, find local maxima in -log10(p-value) data and
         describe them.
 
@@ -1424,15 +1430,20 @@ class Basic:
 
         """
 
-        return [
-            self.compute_local_maxima_for_variable(
-                variable, segmentation_voxels, segmentation_map, background_index
+        return {
+            name: self.compute_local_maxima_for_variable(
+                name,
+                logp_max_t[index],
+                segmentation_voxels,
+                segmentation_map,
+                background_index,
             )
-            for variable in logp_max_t
-        ]
+            for index, name in enumerate(tested_names)
+        }
 
     def compute_local_maxima_for_variable(
         self,
+        name: str,
         variable: npt.NDArray,
         segmentation_voxels: npt.NDArray[np.float64 | int] | None,
         segmentation_map: dict[int, str] | None,
@@ -1442,6 +1453,7 @@ class Basic:
         describe them.
 
         Args:
+            name (str): name of tested variable being processed
             variable (npt.NDArray[np.float64]): log10 p-values from permuted_ols of a
                 specific tested variable and each voxel location.
             segmentation_voxels (npt.NDArray[np.float64 | int] | None): segmentation
@@ -1529,6 +1541,7 @@ class Basic:
             (
                 xyz,
                 self.describe_maximum(
+                    name,
                     xyz,
                     variable,
                     segmentation_voxels,
@@ -1541,6 +1554,7 @@ class Basic:
 
     def describe_maximum(
         self,
+        name: str,
         xyz: list[int],
         log10_pvalue: npt.NDArray,
         segmentation_voxels: npt.NDArray[np.float64 | int] | None,
@@ -1550,6 +1564,7 @@ class Basic:
         """Describe a specific local maximum of a specific tested variable,
 
         Args:
+            name (str): name of tested variable being described
             xyz (list[int]): location of voxel.
             log10_pvalue (npt.NDArray[np.float64]): log10 p-values from permuted_ols of
                 a specific tested variable and each voxel location.
@@ -1573,6 +1588,7 @@ class Basic:
             or segmentation_map is None
             or background_index is None
             else self.describe_maximum_using_partition(
+                name,
                 xyz,
                 log10_pvalue,
                 segmentation_voxels,
@@ -1581,6 +1597,7 @@ class Basic:
             )
             if len(segmentation_voxels.shape) == 3
             else self.describe_maximum_using_cloud(
+                name,
                 xyz,
                 log10_pvalue,
                 segmentation_voxels,
@@ -1593,6 +1610,7 @@ class Basic:
 
     def describe_maximum_using_partition(
         self,
+        name: str,  # noqa: ARG002
         xyz: list[int],
         log10_pvalue: npt.NDArray,
         segmentation_voxels: npt.NDArray[int],
@@ -1603,6 +1621,7 @@ class Basic:
         partition (i.e. a 3-dimensional segmentation_voxels).
 
         Args:
+            name (str): name of tested variable being described
             xyz (list[int]): location of voxel.
             log10_pvalue (npt.NDArray[np.float64]): log10 p-values from permuted_ols of
                 a specific tested variable and each voxel location.
@@ -1651,6 +1670,7 @@ class Basic:
 
     def describe_maximum_using_cloud(
         self,
+        name: str,  # noqa: ARG002
         xyz: list[int],
         log10_pvalue: npt.NDArray,
         segmentation_voxels: npt.NDArray[np.float64],
@@ -1661,6 +1681,7 @@ class Basic:
         (i.e. a 4-dimensional segmentation_voxels).
 
         Args:
+            name (str): name of tested variable being described
             xyz (list[int]): location of voxel.
             log10_pvalue (npt.NDArray[np.float64]): log10 p-values from permuted_ols of
                 a specific tested variable and each voxel location.
@@ -1709,19 +1730,205 @@ class Basic:
 
     def save_output(
         self,
-        template_voxels: nib.filebasedimages.FileBasedImage | None,  # noqa: ARG002
-        template_affine: npt.NDArray[np.float64] | None,  # noqa: ARG002
+        *,
+        template_voxels: nib.filebasedimages.FileBasedImage | None,
+        affine: npt.NDArray[np.float64] | None,
         segmentation_voxels: npt.NDArray[np.float64 | int] | None,  # noqa: ARG002
         segmentation_header: collections.OrderedDict[str, Any] | None,  # noqa: ARG002
         segmentation_map: dict[int, str] | None,  # noqa: ARG002
         permuted_ols: dict[str, npt.NDArray[np.float64]],
-        glm_ols: npt.NDArray[np.float64],  # noqa: ARG002
-        local_maxima_description: list[list[tuple[list[int], str]]],  # noqa: ARG002
+        glm_ols: npt.NDArray[np.float64],
+        local_maxima_description: dict[str, list[tuple[list[int], str]]],
     ) -> None:
-        # TODO: Write docstring
+        """Write outputs to files as directed by the configuration
 
-        logp_max_t: npt.NDArray[np.float64] = permuted_ols["logp_max_t"]  # noqa: F841
+        Args:
+            template_voxels (nib.filebasedimages.FileBasedImage | None): background
+                image on which to display results.
+            affine (npt.NDArray[np.float64] | None): affine transformation to use for
+                saved images.
+            segmentation_voxels (npt.NDArray[np.float64 | int] | None): information
+                about the segmentation, as a partition (storing a segment index (int)
+                across 3 dimensions) or as a cloud (storing a probability (np.float64)
+                across 4 dimensions; segment index and three spatial dimensions.
+            segmentation_header (collections.OrderedDict[str, Any] | None): the entire
+                nifti header for the segmentation.
+            segmentation_map (dict[int, str] | None): a map of segment index to segment
+                label.
+            permuted_ols (dict[str, npt.NDArray[np.float64]]): the output from
+                nilearn.mass_univariate.permuted_ols after applying
+                masker.inverse_transform().
+            glm_ols (npt.NDArray[np.float64]): the beta for each tested var for each
+                voxel.
+            local_maxima_description (dict[str, list[tuple[list[int], str]]]): location
+                and description for each tested variable, for each local maximum.
+
+        Returns:
+           None
+
+        """
+
         # TODO: Write me
+
+        gamma: float = cast(float, self.config_get(["output", "images", "gamma"]))
+        brain_voxels: npt.NDArray[np.float64] | None = None
+        if template_voxels is not None:
+            brain_voxels = np.asanyarray(template_voxels.dataobj[:, :, :])
+            # Scale max to 1, noting that -log10(10%)==1
+            brain_voxels = brain_voxels / np.max(brain_voxels)
+            # Change brain_voxels to gray in RGB.  Matplotlib expects color to be the
+            # last dimension
+            brain_voxels = np.stack((brain_voxels,) * 3, axis=-1)
+
+        logp_max_t_all: npt.NDArray[np.float64]
+        logp_max_t_all = permuted_ols["logp_max_t"]
+
+        x_margins = logp_max_t_all.sum(axis=(2, 3))
+        minX, bestX, maxX = self.find_good_slice(x_margins)
+
+        y_margins = logp_max_t_all.sum(axis=(1, 3))
+        minY, bestY, maxY = self.find_good_slice(y_margins)
+
+        z_margins = logp_max_t_all.sum(axis=(1, 2))
+        minZ, bestZ, maxZ = self.find_good_slice(z_margins)
+
+        # TODO: Do we want the output to also include the `desired_modality`?
+
+        for index, (name, _description) in enumerate(local_maxima_description.items()):
+            logp_max_t: npt.NDArray[np.float64]
+            logp_max_t = logp_max_t_all[index, :, :, :]
+            glm_ols_for_name: npt.NDArray[np.float64]
+            glm_ols_for_name = glm_ols[index, :, :, :]  # noqa: F841
+            # TODO: Save this `logp_max_t` image for `name`
+            # TODO: Save this `glm_ols_for_name` image for `name`
+            # TODO: Save this text `description` for `name`, maybe in a text file?
+            show_voxels = npt.NDArray[np.float64]
+            # RGB image
+            brain_voxels = (
+                np.zeros((*logp_max_t.shape, 3))
+                if brain_voxels is None
+                else brain_voxels
+            )
+            show_voxels = brain_voxels.copy()
+            # Add gamma corrected output to the green channel
+            show_voxels[:, :, :, 1] += np.power(logp_max_t[:, :, :], gamma)
+            show_voxels = np.clip(show_voxels, 0, 1)
+            slices_voxels = self.orient_data_for_slices(affine, show_voxels)
+            slice_2d = slices_voxels["sagittal"][bestX[index], :, :, :]
+
+            # TODO: Instead of printing and plotting, save these 2d color images to
+            # files.
+            # TODO: Remove import of matplotlib as mpl
+            print(f"X={bestX[index]} sagittal slice from L (A->P by I->S) for {name!r}")  # noqa: T201
+            slice_2d = slices_voxels["sagittal"][bestX[index], :, :, :]
+            # matplotlib.pyplot.imshow uses [row, column, color] (i.e., [y, x, color])
+            mpl.pyplot.imshow(np.swapaxes(slice_2d, 0, 1), origin="lower")
+            mpl.pyplot.show()
+
+            print(f"Y={bestY[index]} coronal slice from A (R->L, I->S) for {name!r}")  # noqa: T201
+            slice_2d = slices_voxels["coronal"][bestY[index], :, :, :]
+            # matplotlib.pyplot.imshow uses [row, column, color] (i.e., [y, x, color])
+            mpl.pyplot.imshow(np.swapaxes(slice_2d, 0, 1), origin="lower")
+            mpl.pyplot.show()
+
+            print(f"Z={bestZ[index]} axial slice from I (R->L, P->A) for {name!r}")  # noqa: T201
+            slice_2d = slices_voxels["axial"][bestZ[index], :, :, :]
+            # matplotlib.pyplot.imshow uses [row, column, color] (i.e., [y, x, color])
+            mpl.pyplot.imshow(np.swapaxes(slice_2d, 0, 1), origin="lower")
+            mpl.pyplot.show()
+
+    def find_good_slice(
+        self, margins: npt.NDArray[np.float64]
+    ) -> tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
+        """
+        For each tested variable, we want to show an interesting slice of the 3d-data.
+        For example, we choose a slice in the X dimension (i.e., we choose a YZ plane)
+            by designating its x coordinate and its lower and upper bounds for y and z.
+        First step is summing out over the Y and Z dimensions to compute `margins`,
+            which is done before calling find_good_slice().
+        (`margins` is 2-dimensional; it is computed from 4-dimensional data with
+            shape=(number_tested_variables, size_x, size_y, size_z))
+        We then compute:
+            for i in range(list_of_tested_variables):
+                min_[i] = The lowest x for which margins[i, x] is non-zero
+                max_[i] = One more than the largest x for which margins[i, x] is
+                    non-zero
+                best_[i] = The (first) value of x that maximizes margins[i, :]
+        This routine works identically for slices in the Y or Z dimensions, so long as
+            margins is supplied by summing out the remaining dimensions.
+
+        Args:
+           list_of_keys (list[str]): the location of the desired information, e.g.,
+               ["tested_variables", "variable_default", "type"]
+
+        Returns:
+           The value of the configuration value, if available, otherwise `None`.
+        """
+        min_: npt.NDArray = np.argmax(margins > 0.0, axis=-1)
+        best_: npt.NDArray = np.argmax(margins, axis=-1)
+        max_: npt.NDArray = np.argmax(np.cumsum(margins > 0.0, axis=-1), axis=-1) + 1
+        return min_, best_, max_
+
+    def orient_data_for_slices(
+        self, transform_matrix: npt.NDArray, data_matrix: npt.NDArray
+    ) -> dict[str, npt.NDArray]:
+        # TODO: Needs docstring
+
+        best_perm, signs = self.best_axis_alignment(transform_matrix)
+        # Permute spatial axes, but keep the color channel last
+        data_matrix = np.transpose(data_matrix, (*best_perm, 3))
+
+        # Sagittal: Want axis 0 to be L->R or R->L, AS IS; axis 1 is A->P; axis 2 is
+        # I->S; axis 3 is color
+        sagittal_matrix = np.transpose(data_matrix, (0, 1, 2, 3))
+        if signs[1]:
+            sagittal_matrix = sagittal_matrix[:, ::-1, :, :]
+        if not signs[2]:
+            sagittal_matrix = sagittal_matrix[:, :, ::-1, :]
+
+        # Coronal: Want axis 0 to be P->A or A->P, AS IS; axis 1 is R-> L; axis 2 is
+        # I->S; axis 3 is color
+        coronal_matrix = np.transpose(data_matrix, (1, 0, 2, 3))
+        if signs[0]:
+            coronal_matrix = coronal_matrix[:, ::-1, :, :]
+        if not signs[2]:
+            coronal_matrix = coronal_matrix[:, :, ::-1, :]
+
+        # Axial: Want axis 0 to be I->S or S->I, AS IS; axis 1 is R->L; axis 2 is P->A;
+        # axis 3 is color
+        axial_matrix = np.transpose(data_matrix, (2, 0, 1, 3))
+        if signs[0]:
+            axial_matrix = axial_matrix[:, ::-1, :, :]
+        if not signs[1]:
+            axial_matrix = axial_matrix[:, :, ::-1, :]
+
+        return {
+            "sagittal": sagittal_matrix,
+            "coronal": coronal_matrix,
+            "axial": axial_matrix,
+        }
+
+    def best_axis_alignment(
+        self, transform_matrix: npt.NDArray
+    ) -> tuple[npt.NDArray, npt.NDArray]:
+        # The input matrix maps column vector (i,j,k) to column vector (R,A,S).  (It is
+        # (i,j,k,1) to (R,A,S,1), if affine.)  In case it is an affine matrix, use just
+        # the upper-left 3 by 3.
+        transform_matrix = transform_matrix[0:3, 0:3]
+        # Normalize the column vectors
+        transform_matrix = transform_matrix / np.linalg.norm(transform_matrix, axis=0)
+        # Compare permutations of the rows with the identity matrix
+        best_perm = None
+        best_perm_value = -100
+        for perm in itertools.permutations(range(3)):
+            new_perm_value = np.sum(np.abs(transform_matrix[perm, range(3)]))
+            if best_perm_value < new_perm_value:
+                best_perm_value = new_perm_value
+                best_perm = perm
+        # For permuted the data, signs == True means R, A, S (respectively); signs ==
+        # False means L, P, I.
+        signs = transform_matrix[best_perm, range(3)] > 0.0
+        return np.array(best_perm), np.array(signs)
 
     def config_get(
         self, list_of_keys: list[str]
@@ -2155,10 +2362,7 @@ class Basic:
         return []
 
     def pandas_replace(
-        self,
-        series: pd.core.series.Series,
-        src: Any,
-        dst: Any,
+        self, series: pd.core.series.Series, src: Any, dst: Any
     ) -> pd.core.series.Series:
         """Implement a panda Series.replace command such that replacement occurs if
         values are numerically equal, even if they are not of the same type.
