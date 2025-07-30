@@ -1444,7 +1444,7 @@ class Basic:
     def compute_local_maxima_for_variable(
         self,
         name: str,
-        variable: npt.NDArray,
+        variable: npt.NDArray[np.float64],
         segmentation_voxels: npt.NDArray[np.float64 | int] | None,
         segmentation_map: dict[int, str] | None,
         background_index: int | None,
@@ -1556,7 +1556,7 @@ class Basic:
         self,
         name: str,
         xyz: list[int],
-        log10_pvalue: npt.NDArray,
+        log10_pvalue: npt.NDArray[np.float64],
         segmentation_voxels: npt.NDArray[np.float64 | int] | None,
         segmentation_map: dict[int, str] | None,
         background_index: int | None,
@@ -1612,7 +1612,7 @@ class Basic:
         self,
         name: str,  # noqa: ARG002
         xyz: list[int],
-        log10_pvalue: npt.NDArray,
+        log10_pvalue: npt.NDArray[np.float64],
         segmentation_voxels: npt.NDArray[int],
         segmentation_map: dict[int, str],
         background_index: int,
@@ -1648,7 +1648,7 @@ class Basic:
         if region_index == background_index:
             # Instead of background, take the most common nearby brain region
             for distance in range(1, radius + 1):
-                neighborhood: npt.NDArray = segmentation_voxels[
+                neighborhood: npt.NDArray[np.float64] = segmentation_voxels[
                     max(0, x - distance) : min(shapex, x + distance + 1),
                     max(0, y - distance) : min(shapey, y + distance + 1),
                     max(0, z - distance) : min(shapez, z + distance + 1),
@@ -1672,7 +1672,7 @@ class Basic:
         self,
         name: str,  # noqa: ARG002
         xyz: list[int],
-        log10_pvalue: npt.NDArray,
+        log10_pvalue: npt.NDArray[np.float64],
         segmentation_voxels: npt.NDArray[np.float64],
         segmentation_map: dict[int, str],
         background_index: int,
@@ -1709,8 +1709,8 @@ class Basic:
 
         x, y, z = xyz
         shapex, shapey, shapez = log10_pvalue.shape
-        cloud_here: npt.NDArray = segmentation_voxels[:, x, y, z]
-        argsort: npt.NDArray = np.argsort(cloud_here)[::-1]
+        cloud_here: npt.NDArray[np.float64] = segmentation_voxels[:, x, y, z]
+        argsort: npt.NDArray[np.float64] = np.argsort(cloud_here)[::-1]
         # Show those that exceed threshold; showing at least 2 regions
         description: list[str]
         description = [
@@ -1768,8 +1768,6 @@ class Basic:
 
         """
 
-        # TODO: Write me
-
         gamma: float = cast(float, self.config_get(["output", "images", "gamma"]))
         brain_voxels: npt.NDArray[np.float64] | None = None
         if template_voxels is not None:
@@ -1783,17 +1781,33 @@ class Basic:
         logp_max_t_all: npt.NDArray[np.float64]
         logp_max_t_all = permuted_ols["logp_max_t"]
 
+        # We'll show three interesting slices for each tested variable, one each of
+        # sagittal (x), coronal (y), and axial (z).  Find them for all tested variables
+        # simultaneously.
+        x_margins: npt.NDArray[np.float64]
         x_margins = logp_max_t_all.sum(axis=(2, 3))
+        minX: npt.NDArray[int]
+        bestX: npt.NDArray[int]
+        maxX: npt.NDArray[int]
         minX, bestX, maxX = self.find_good_slice(x_margins)
-
+        y_margins: npt.NDArray[np.float64]
         y_margins = logp_max_t_all.sum(axis=(1, 3))
+        minY: npt.NDArray[int]
+        bestY: npt.NDArray[int]
+        maxY: npt.NDArray[int]
         minY, bestY, maxY = self.find_good_slice(y_margins)
-
+        z_margins: npt.NDArray[np.float64]
         z_margins = logp_max_t_all.sum(axis=(1, 2))
+        minZ: npt.NDArray[int]
+        bestZ: npt.NDArray[int]
+        maxZ: npt.NDArray[int]
         minZ, bestZ, maxZ = self.find_good_slice(z_margins)
 
         # TODO: Do we want the output to also include the `desired_modality`?
 
+        index: int
+        name: str
+        _description: list[tuple[list[int], str]]
         for index, (name, _description) in enumerate(local_maxima_description.items()):
             logp_max_t: npt.NDArray[np.float64]
             logp_max_t = logp_max_t_all[index, :, :, :]
@@ -1802,23 +1816,24 @@ class Basic:
             # TODO: Save this `logp_max_t` image for `name`
             # TODO: Save this `glm_ols_for_name` image for `name`
             # TODO: Save this text `description` for `name`, maybe in a text file?
-            show_voxels = npt.NDArray[np.float64]
             # RGB image
             brain_voxels = (
                 np.zeros((*logp_max_t.shape, 3))
                 if brain_voxels is None
                 else brain_voxels
             )
+            show_voxels = npt.NDArray[np.float64]
             show_voxels = brain_voxels.copy()
             # Add gamma corrected output to the green channel
             show_voxels[:, :, :, 1] += np.power(logp_max_t[:, :, :], gamma)
             show_voxels = np.clip(show_voxels, 0, 1)
+            slices_voxels: dict[str, npt.NDArray[np.float64]]
             slices_voxels = self.orient_data_for_slices(affine, show_voxels)
-            slice_2d = slices_voxels["sagittal"][bestX[index], :, :, :]
-
             # TODO: Instead of printing and plotting, save these 2d color images to
             # files.
             # TODO: Remove import of matplotlib as mpl
+            slice_2d: npt.NDArray[np.float64]
+
             print(f"X={bestX[index]} sagittal slice from L (A->P by I->S) for {name!r}")  # noqa: T201
             slice_2d = slices_voxels["sagittal"][bestX[index], :, :, :]
             # matplotlib.pyplot.imshow uses [row, column, color] (i.e., [y, x, color])
@@ -1839,7 +1854,7 @@ class Basic:
 
     def find_good_slice(
         self, margins: npt.NDArray[np.float64]
-    ) -> tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
+    ) -> tuple[npt.NDArray[int], npt.NDArray[int], npt.NDArray[int]]:
         """
         For each tested variable, we want to show an interesting slice of the 3d-data.
         For example, we choose a slice in the X dimension (i.e., we choose a YZ plane)
@@ -1864,42 +1879,92 @@ class Basic:
         Returns:
            The value of the configuration value, if available, otherwise `None`.
         """
-        min_: npt.NDArray = np.argmax(margins > 0.0, axis=-1)
-        best_: npt.NDArray = np.argmax(margins, axis=-1)
-        max_: npt.NDArray = np.argmax(np.cumsum(margins > 0.0, axis=-1), axis=-1) + 1
+        min_: npt.NDArray[int] = np.argmax(margins > 0.0, axis=-1)
+        best_: npt.NDArray[int] = np.argmax(margins, axis=-1)
+        max_: npt.NDArray[int] = (
+            np.argmax(np.cumsum(margins > 0.0, axis=-1), axis=-1) + 1
+        )
         return min_, best_, max_
 
     def orient_data_for_slices(
-        self, transform_matrix: npt.NDArray, data_matrix: npt.NDArray
-    ) -> dict[str, npt.NDArray]:
-        # TODO: Needs docstring
+        self,
+        transform_matrix: npt.NDArray[np.float64],
+        data_matrix: npt.NDArray[np.float64],
+    ) -> dict[str, npt.NDArray[np.float64]]:
+        """We make three copies of the data, one for each of sagittal, coronal, or axial
+        slices.
 
+        The copy of the data for a kind of slice puts the normal dimension first.  It
+        then puts the dimension usually viewed horizontally from left to right as next.
+        It puts the dimension usually viewed vertically from bottom to top as
+        next.  Finally is the dimension for color / channel.
+
+        In the following L=left, R=right, P=posterior, A=Anterior, I=inferior, and
+        S=superior.
+
+        For sagittal slices, axis 0 is L->R or R->L, whichever way it arrives; axis 1 is
+        A->P; axis 2 is I->S; axis 3 is color.
+
+        For coronal slices, axis 0 is P->A or A->P, whichever way it arrives; axis 1 is
+        R->L; axis 2 is I->S; axis 3 is color
+
+        For axial slices, axis 0 is I->S or S->I, whichever way it arrives; axis 1 is
+        R->L; axis 2 is P->A; axis 3 is color
+
+        Args:
+           transform_matrix (npt.NDArray[np.float64]): the 3-by-3 part of an affine
+               matrix (or the entire 4-by-4 affine matrix) that is used to determine the
+               current order of the axes and their orientations relative to
+               right-anterior-superior (RAS) coordinates.
+           data_matrix (npt.NDArray[np.float64]): the voxel data matrix with dimensions
+               [i][j][k][c] where i,j,k, map to R,A,S via the transform_matrix and c is
+               the color channel.
+
+        Returns:
+           dict[str, npt.NDArray[np.float64]]: for each of "sagittal", "coronal", and
+           "axial" returns a view of the input data_matrix but in the standard
+           orientation for that kind of slice.
+
+        """
+
+        best_perm: npt.NDArray[int]
+        signs: npt.NDArray[bool]
         best_perm, signs = self.best_axis_alignment(transform_matrix)
-        # Permute spatial axes, but keep the color channel last
+        # Permute spatial axes to get RAS (or the closest we can get to it); though we
+        # have to handle signs too, later.  Keep the color channel last.
         data_matrix = np.transpose(data_matrix, (*best_perm, 3))
 
         # Sagittal: Want axis 0 to be L->R or R->L, AS IS; axis 1 is A->P; axis 2 is
         # I->S; axis 3 is color
+        sagittal_matrix: npt.NDArray[np.float64]
         sagittal_matrix = np.transpose(data_matrix, (0, 1, 2, 3))
         if signs[1]:
+            # Switch P->A to A->P
             sagittal_matrix = sagittal_matrix[:, ::-1, :, :]
         if not signs[2]:
+            # Switch S->I to I->S
             sagittal_matrix = sagittal_matrix[:, :, ::-1, :]
 
-        # Coronal: Want axis 0 to be P->A or A->P, AS IS; axis 1 is R-> L; axis 2 is
+        # Coronal: Want axis 0 to be P->A or A->P, AS IS; axis 1 is R->L; axis 2 is
         # I->S; axis 3 is color
+        coronal_matrix: npt.NDArray[np.float64]
         coronal_matrix = np.transpose(data_matrix, (1, 0, 2, 3))
         if signs[0]:
+            # Switch L->R to R->L
             coronal_matrix = coronal_matrix[:, ::-1, :, :]
         if not signs[2]:
+            # Switch S->I to I->S
             coronal_matrix = coronal_matrix[:, :, ::-1, :]
 
         # Axial: Want axis 0 to be I->S or S->I, AS IS; axis 1 is R->L; axis 2 is P->A;
         # axis 3 is color
+        axial_matrix: npt.NDArray[np.float64]
         axial_matrix = np.transpose(data_matrix, (2, 0, 1, 3))
         if signs[0]:
+            # Switch L->R to R->L
             axial_matrix = axial_matrix[:, ::-1, :, :]
         if not signs[1]:
+            # Switch A->P to P->A
             axial_matrix = axial_matrix[:, :, ::-1, :]
 
         return {
@@ -1909,8 +1974,27 @@ class Basic:
         }
 
     def best_axis_alignment(
-        self, transform_matrix: npt.NDArray
-    ) -> tuple[npt.NDArray, npt.NDArray]:
+        self, transform_matrix: npt.NDArray[np.float64]
+    ) -> tuple[npt.NDArray[int], npt.NDArray[bool]]:
+        """Try all permutations of the spatial axes to see which produces a (permuted)
+        transformation matrix most like the identity matrix, and return that combination
+        of permutations and signs.
+
+        Args:
+           transform_matrix (npt.NDArray[np.float64]): the 3-by-3 part of an affine
+               matrix (or the entire 4-by-4 affine matrix) that is used to determine the
+               current order of the axes and their orientations relative to
+               right-anterior-superior (RAS) coordinates.
+
+        Returns:
+           npt.NDArray[int]: a vector that converts axis order to be R (or L), A (or P),
+               S (or I) if given to numpy.transpose():
+           npt.NDArray[bool]: a vector that gives signs indicating whether the
+               transposed axes become R, A, S (all True); or L, P, I (all False); or
+               some mixture.
+
+        """
+
         # The input matrix maps column vector (i,j,k) to column vector (R,A,S).  (It is
         # (i,j,k,1) to (R,A,S,1), if affine.)  In case it is an affine matrix, use just
         # the upper-left 3 by 3.
@@ -1918,15 +2002,18 @@ class Basic:
         # Normalize the column vectors
         transform_matrix = transform_matrix / np.linalg.norm(transform_matrix, axis=0)
         # Compare permutations of the rows with the identity matrix
-        best_perm = None
-        best_perm_value = -100
+        best_perm: tuple[int, ...]
+        best_perm_value: float = -100
+        perm: tuple[int, ...]
         for perm in itertools.permutations(range(3)):
+            new_perm_value: float
             new_perm_value = np.sum(np.abs(transform_matrix[perm, range(3)]))
             if best_perm_value < new_perm_value:
                 best_perm_value = new_perm_value
                 best_perm = perm
         # For permuted the data, signs == True means R, A, S (respectively); signs ==
         # False means L, P, I.
+        signs: npt.NDArray[bool]
         signs = transform_matrix[best_perm, range(3)] > 0.0
         return np.array(best_perm), np.array(signs)
 
@@ -1987,11 +2074,17 @@ class Basic:
 
         """
 
-        # Note that required tested_keys and confounding_keys have some fields labeled
-        # as `"required": False` (which does nothing because False is the default)
-        # because they must be supplied as either a "variable" or "variable_default",
-        # but need not be both.
-        # TODO: Can we enforce this "either or" appropriately?
+        # Fields marked with `"required": True` must be present.
+
+        # Note that some fields are required, but there are two places ("variable" or
+        # "variable_default") where they could be supplied, and being missing from just
+        # one of them is not an error.  These cases are marked with `"required": False`
+        # in the below, which actually does nothing because False is the default.
+        # However, this marking is a reminder that we should be doing something to
+        # verify that at least one of the places supplies a value.
+
+        # TODO: Enforce this "either or" appropriately
+
         tested_keys = {
             "filename": {"required": False},
             "convert": {},
@@ -2268,12 +2361,15 @@ class Basic:
         input_raw = self.config_get(["output", "destination_directory"])
         if input_raw is None:
             response = [*response, "output.destination_directory must be supplied."]
-        elif not pathlib.Path(cast(str, input_raw)).is_dir():
-            response = [
-                *response,
-                f"output.destination_directory {input_raw} does not exist.",
-            ]
-        # TODO: Also check that destination_directory is writable
+        else:
+            destination_path: pathlib.Path
+            destination_path = pathlib.Path(cast(str, input_raw))
+            if not (destination_path.is_dir() and os.access(destination_path, os.W_OK)):
+                response = [
+                    *response,
+                    f"output.destination_directory {destination_path} does not exist"
+                    " or is not writable.",
+                ]
 
         return response
 
