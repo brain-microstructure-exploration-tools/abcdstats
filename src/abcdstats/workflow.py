@@ -8,7 +8,6 @@ import os
 import pathlib
 from typing import Any, TypeAlias, Union, cast
 
-import matplotlib as mpl  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import nibabel as nib  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import nilearn.glm  # type: ignore[import-not-found,import-untyped,unused-ignore]
 import nilearn.maskers  # type: ignore[import-not-found,import-untyped,unused-ignore]
@@ -80,7 +79,7 @@ class Basic:
                 },
                 "permuted_ols": {
                     "model_intercept": True,
-                    "n_perm": 100,  # TODO: Restore me to 10000 when testing is done
+                    "n_perm": 10000,
                     "two_sided_test": True,
                     "random_state": None,
                     "n_jobs": -1,  # All available
@@ -244,9 +243,13 @@ class Basic:
         # Process output to compute local maxima.
         # For each tested variable, for each local maximum, output coordinates and a
         # description
+        tested_names: list[str]
+        tested_names = [
+            name for name in tested_frame.columns if name not in self.join_keys
+        ]
         local_maxima_description: dict[str, list[tuple[list[int], str]]]
         local_maxima_description = self.compute_local_maxima(
-            tested_names=list(tested_frame.columns),
+            tested_names=tested_names,
             logp_max_t=logp_max_t,
             segmentation_voxels=segmentation_voxels,
             segmentation_map=segmentation_map,
@@ -255,7 +258,7 @@ class Basic:
 
         self.save_output(
             template_voxels=template_voxels,
-            affine=template_affine,
+            template_affine=template_affine,
             segmentation_voxels=segmentation_voxels,
             segmentation_header=segmentation_header,
             segmentation_map=segmentation_map,
@@ -807,7 +810,8 @@ class Basic:
         variables: dict[str, dict[str, Any]]
         variables = {
             new_variable: {**var_config, "internal_name": new_variable}
-            for new_variable in set(df_var.columns) - df_var_columns
+            for new_variable in df_var.columns
+            if new_variable not in df_var_columns
         }
 
         return variables, df_var
@@ -1014,7 +1018,6 @@ class Basic:
         # TODO: Do we want `all_frame = all_frame.dropna()` here?  Although convert may
         # already have converted all NaNs that we wish to retain, it is also the case
         # that it might not have.
-        all_frame = all_frame.dropna()
 
         # Now that we have determined which rows are actually going to be processed,
         # let's remove columns that do not meet the perplexity requirement.
@@ -1027,13 +1030,17 @@ class Basic:
         # columns.
         tested_frame = all_frame[all_frame.columns.intersection(tested_frame.columns)]
         tested_keys: list[str]
-        tested_keys = list(set(tested_frame.columns) - set(self.join_keys))
+        tested_keys = [
+            name for name in tested_frame.columns if name not in self.join_keys
+        ]
         tested_array: npt.NDArray[np.float64]
         tested_array = tested_frame[tested_keys].to_numpy(dtype=np.float64)
 
         target_frame = all_frame[all_frame.columns.intersection(target_frame.columns)]
         target_keys: list[str]
-        target_keys = list(set(target_frame.columns) - set(self.join_keys))
+        target_keys = [
+            name for name in target_frame.columns if name not in self.join_keys
+        ]
         target_images: list[nib.filebasedimages.FileBasedImage]
         target_affine: npt.NDArray[np.float64]
         target_images, target_affine = self.get_target_data_voxels_and_affine(
@@ -1044,7 +1051,9 @@ class Basic:
             all_frame.columns.intersection(confounding_frame.columns)
         ]
         confounding_keys: list[str]
-        confounding_keys = list(set(confounding_frame.columns) - set(self.join_keys))
+        confounding_keys = [
+            name for name in confounding_frame.columns if name not in self.join_keys
+        ]
         confounding_array: npt.NDArray[np.float64]
         confounding_array = confounding_frame[confounding_keys].to_numpy(
             dtype=np.float64
@@ -1728,11 +1737,17 @@ class Basic:
 
         return "\n".join(description)
 
+    # TODO: This save_output() method should be broken into two methods.  The first of
+    # the methods to be called should compute everything -- including find_good_slice(),
+    # brain_voxels, each show_voxels, and each slice_2d -- and return them all.  The
+    # second of the methods to be called accepts everything that was just computed, plus
+    # an affine transformation and maybe a nifti header, and does nothing other than
+    # writing them all out to appropriately named files.
     def save_output(
         self,
         *,
         template_voxels: nib.filebasedimages.FileBasedImage | None,
-        affine: npt.NDArray[np.float64] | None,
+        template_affine: npt.NDArray[np.float64] | None,
         segmentation_voxels: npt.NDArray[np.float64 | int] | None,  # noqa: ARG002
         segmentation_header: collections.OrderedDict[str, Any] | None,  # noqa: ARG002
         segmentation_map: dict[int, str] | None,  # noqa: ARG002
@@ -1745,8 +1760,8 @@ class Basic:
         Args:
             template_voxels (nib.filebasedimages.FileBasedImage | None): background
                 image on which to display results.
-            affine (npt.NDArray[np.float64] | None): affine transformation to use for
-                saved images.
+            template_affine (npt.NDArray[np.float64] | None): affine transformation to
+                use for saved images.
             segmentation_voxels (npt.NDArray[np.float64 | int] | None): information
                 about the segmentation, as a partition (storing a segment index (int)
                 across 3 dimensions) or as a cloud (storing a probability (np.float64)
@@ -1768,7 +1783,21 @@ class Basic:
 
         """
 
-        gamma: float = cast(float, self.config_get(["output", "images", "gamma"]))
+        gamma: float
+        gamma = cast(float, self.config_get(["output", "images", "gamma"]))
+        # TODO: Allow that destination_directory might be `None` and then don't write
+        # any files.  To support this, we'll also have to turn off `"required": True`
+        # for "destination_directory" in the schema defined in lint().
+        destination_directory: pathlib.Path
+        destination_directory = pathlib.Path(
+            cast(str, self.config_get(["output", "destination_directory"]))
+        )
+        # TODO: Should we add `desired_modality` to the file names below?
+        desired_modality: str
+        desired_modality = cast(  # noqa: F841
+            str, self.config_get(["target_variables", "desired_modality"])
+        )
+
         brain_voxels: npt.NDArray[np.float64] | None = None
         if template_voxels is not None:
             brain_voxels = np.asanyarray(template_voxels.dataobj[:, :, :])
@@ -1803,54 +1832,123 @@ class Basic:
         maxZ: npt.NDArray[int]
         minZ, bestZ, maxZ = self.find_good_slice(z_margins)
 
-        # TODO: Do we want the output to also include the `desired_modality`?
-
         index: int
         name: str
-        _description: list[tuple[list[int], str]]
-        for index, (name, _description) in enumerate(local_maxima_description.items()):
+        description: list[tuple[list[int], str]]
+        for index, (name, description) in enumerate(local_maxima_description.items()):
             logp_max_t: npt.NDArray[np.float64]
             logp_max_t = logp_max_t_all[index, :, :, :]
-            glm_ols_for_name: npt.NDArray[np.float64]
-            glm_ols_for_name = glm_ols[index, :, :, :]  # noqa: F841
-            # TODO: Save this `logp_max_t` image for `name`
-            # TODO: Save this `glm_ols_for_name` image for `name`
-            # TODO: Save this text `description` for `name`, maybe in a text file?
-            # RGB image
+            glm_ols_for_var: npt.NDArray[np.float64]
+            glm_ols_for_var = glm_ols[index, :, :, :]
+
+            # TODO: Instead of building the header from scratch, which is what supplying
+            # nib.Nifti1Header() does, do we want to start with (a copy of?) the
+            # template_voxels.header?  If we do that, some manual updating of that
+            # header may be necessary for each created image.
+
+            logp_max_t_image: nib.nifti1.Nifti1Image
+            logp_max_t_image = nib.Nifti1Image(
+                logp_max_t, template_affine, nib.Nifti1Header()
+            )
+            logp_max_t_name: pathlib.Path
+            logp_max_t_name = destination_directory / (
+                name + "__logp_max_t" + ".nii.gz"
+            )
+            nib.save(logp_max_t_image, logp_max_t_name)
+
+            glm_ols_image: nib.nifti1.Nifti1Image
+            glm_ols_image = nib.Nifti1Image(
+                glm_ols_for_var, template_affine, nib.Nifti1Header()
+            )
+            glm_ols_name: pathlib.Path
+            glm_ols_name = destination_directory / (name + "__glm_ols" + ".nii.gz")
+            nib.save(glm_ols_image, glm_ols_name)
+
+            description_text = (
+                "\n".join([f"At location {desc[0]}: {desc[1]}" for desc in description])
+                + "\n"
+            )
+            description_name: pathlib.Path
+            description_name = destination_directory / (
+                name + "__local_maxima" + ".txt"
+            )
+            with description_name.open("w") as description_file:
+                description_file.write(description_text)
+
             brain_voxels = (
+                # The last dimension is 3 because this is an RGB image
                 np.zeros((*logp_max_t.shape, 3))
                 if brain_voxels is None
                 else brain_voxels
             )
+
             show_voxels = npt.NDArray[np.float64]
             show_voxels = brain_voxels.copy()
             # Add gamma corrected output to the green channel
             show_voxels[:, :, :, 1] += np.power(logp_max_t[:, :, :], gamma)
             show_voxels = np.clip(show_voxels, 0, 1)
+            show_voxels_image: nib.nifti1.Nifti1Image
+            show_voxels_image = nib.Nifti1Image(
+                show_voxels, template_affine, nib.Nifti1Header()
+            )
+            show_voxels_name: pathlib.Path
+            show_voxels_name = destination_directory / (
+                name + "__logp_max_t_and_template" + ".nii.gz"
+            )
+            nib.save(show_voxels_image, show_voxels_name)
+
+            # Save some slices of show_voxels separately.
             slices_voxels: dict[str, npt.NDArray[np.float64]]
-            slices_voxels = self.orient_data_for_slices(affine, show_voxels)
-            # TODO: Instead of printing and plotting, save these 2d color images to
-            # files.
-            # TODO: Remove import of matplotlib as mpl
-            slice_2d: npt.NDArray[np.float64]
+            slices_voxels = self.orient_data_for_slices(template_affine, show_voxels)
 
-            print(f"X={bestX[index]} sagittal slice from L (A->P by I->S) for {name!r}")  # noqa: T201
-            slice_2d = slices_voxels["sagittal"][bestX[index], :, :, :]
-            # matplotlib.pyplot.imshow uses [row, column, color] (i.e., [y, x, color])
-            mpl.pyplot.imshow(np.swapaxes(slice_2d, 0, 1), origin="lower")
-            mpl.pyplot.show()
+            # TODO: We've gone through the trouble of orienting these slices the way
+            # sagittal, coronal, and axial slices are usually oriented but we have not
+            # adjusted the corresponding affine matrices accordingly.  So these are
+            # going to load into, e.g., 3D Slicer, in a nonsensical orientation.  We
+            # should either save them as 2d images without affine information are
+            # usually saved (matplotlib?), or we should stick with nifti images but
+            # update the affine matrix for the permutations and sign flips returned by
+            # best_axis_alignment().  (Note that matplotlib will expect us to swap axis
+            # 0 and 1, not have inserted a new axis 2, and to use `origin="lower"`.)
 
-            print(f"Y={bestY[index]} coronal slice from A (R->L, I->S) for {name!r}")  # noqa: T201
-            slice_2d = slices_voxels["coronal"][bestY[index], :, :, :]
-            # matplotlib.pyplot.imshow uses [row, column, color] (i.e., [y, x, color])
-            mpl.pyplot.imshow(np.swapaxes(slice_2d, 0, 1), origin="lower")
-            mpl.pyplot.show()
+            sagittal_numpy: npt.NDArray[np.float64]
+            # Take the slice.  Also insert trivial z dimension for nibabel.
+            sagittal_numpy = slices_voxels["sagittal"][bestX[index], :, :, None, :]
+            sagittal_image: nib.nifti1.Nifti1Image
+            sagittal_image = nib.Nifti1Image(
+                sagittal_numpy, template_affine, nib.Nifti1Header()
+            )
+            sagittal_name: pathlib.Path
+            sagittal_name = destination_directory / (
+                name + f"__sagittal_X={bestX[index]}" + ".nii.gz"
+            )
+            nib.save(sagittal_image, sagittal_name)
 
-            print(f"Z={bestZ[index]} axial slice from I (R->L, P->A) for {name!r}")  # noqa: T201
-            slice_2d = slices_voxels["axial"][bestZ[index], :, :, :]
-            # matplotlib.pyplot.imshow uses [row, column, color] (i.e., [y, x, color])
-            mpl.pyplot.imshow(np.swapaxes(slice_2d, 0, 1), origin="lower")
-            mpl.pyplot.show()
+            coronal_numpy: npt.NDArray[np.float64]
+            # Take the slice.  Also insert trivial z dimension for nibabel.
+            coronal_numpy = slices_voxels["coronal"][bestY[index], :, :, None, :]
+            coronal_image: nib.nifti1.Nifti1Image
+            coronal_image = nib.Nifti1Image(
+                coronal_numpy, template_affine, nib.Nifti1Header()
+            )
+            coronal_name: pathlib.Path
+            coronal_name = destination_directory / (
+                name + f"__coronal_X={bestY[index]}" + ".nii.gz"
+            )
+            nib.save(coronal_image, coronal_name)
+
+            axial_numpy: npt.NDArray[np.float64]
+            # Take the slice.  Also insert trivial z dimension for nibabel.
+            axial_numpy = slices_voxels["axial"][bestZ[index], :, :, None, :]
+            axial_image: nib.nifti1.Nifti1Image
+            axial_image = nib.Nifti1Image(
+                axial_numpy, template_affine, nib.Nifti1Header()
+            )
+            axial_name: pathlib.Path
+            axial_name = destination_directory / (
+                name + f"__axial_X={bestZ[index]}" + ".nii.gz"
+            )
+            nib.save(axial_image, axial_name)
 
     def find_good_slice(
         self, margins: npt.NDArray[np.float64]

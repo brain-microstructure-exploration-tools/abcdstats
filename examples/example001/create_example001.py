@@ -1979,7 +1979,7 @@ sample_configuration: ConfigurationType = {
         },
     },
     "output": {
-        "destination_directory": "TODO:",
+        "destination_directory": "/home/local/KHQ/lee.newberg/git/brain-microstructure-exploration-tools/abcdstats/examples/example001/output",
         "local_maxima": {
             "minimum_negative_log10_p": 0.1,
             "cluster_radius": 3,
