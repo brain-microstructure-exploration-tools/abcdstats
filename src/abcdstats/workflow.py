@@ -1317,12 +1317,10 @@ class Basic:
             )
         )
 
-        """
-        Shapes of the numpy arrays are
-          tested_vars.shape == (number_images, number_ksads)
-          target_vars.shape == (number_images, number_of_good_voxels)
-          confounding_vars.shape == (number_images, number_confounding_vars)
-        """
+        # Note that the shapes of the numpy arrays are
+        #   tested_vars.shape == (number_images, number_ksads)
+        #   target_vars.shape == (number_images, number_of_good_voxels)
+        #   confounding_vars.shape == (number_images, number_confounding_vars)
 
         # Note that each can also be `None`
         perm_ols_spec: dict[str, type] = {
@@ -1815,22 +1813,22 @@ class Basic:
         # simultaneously.
         x_margins: npt.NDArray[np.float64]
         x_margins = logp_max_t_all.sum(axis=(2, 3))
-        minX: npt.NDArray[int]
-        bestX: npt.NDArray[int]
-        maxX: npt.NDArray[int]
-        minX, bestX, maxX = self.find_good_slice(x_margins)
+        min_sagittal: npt.NDArray[int]
+        best_sagittal: npt.NDArray[int]
+        max_sagittal: npt.NDArray[int]
+        min_sagittal, best_sagittal, max_sagittal = self.find_good_slice(x_margins)
         y_margins: npt.NDArray[np.float64]
         y_margins = logp_max_t_all.sum(axis=(1, 3))
-        minY: npt.NDArray[int]
-        bestY: npt.NDArray[int]
-        maxY: npt.NDArray[int]
-        minY, bestY, maxY = self.find_good_slice(y_margins)
+        min_coronal: npt.NDArray[int]
+        best_coronal: npt.NDArray[int]
+        max_coronal: npt.NDArray[int]
+        min_coronal, best_coronal, max_coronal = self.find_good_slice(y_margins)
         z_margins: npt.NDArray[np.float64]
         z_margins = logp_max_t_all.sum(axis=(1, 2))
-        minZ: npt.NDArray[int]
-        bestZ: npt.NDArray[int]
-        maxZ: npt.NDArray[int]
-        minZ, bestZ, maxZ = self.find_good_slice(z_margins)
+        min_axial: npt.NDArray[int]
+        best_axial: npt.NDArray[int]
+        max_axial: npt.NDArray[int]
+        min_axial, best_axial, max_axial = self.find_good_slice(z_margins)
 
         index: int
         name: str
@@ -1913,40 +1911,42 @@ class Basic:
 
             sagittal_numpy: npt.NDArray[np.float64]
             # Take the slice.  Also insert trivial z dimension for nibabel.
-            sagittal_numpy = slices_voxels["sagittal"][bestX[index], :, :, None, :]
+            sagittal_numpy = slices_voxels["sagittal"][
+                best_sagittal[index], :, :, None, :
+            ]
             sagittal_image: nib.nifti1.Nifti1Image
             sagittal_image = nib.Nifti1Image(
                 sagittal_numpy, template_affine, nib.Nifti1Header()
             )
             sagittal_name: pathlib.Path
             sagittal_name = destination_directory / (
-                name + f"__sagittal_X={bestX[index]}" + ".nii.gz"
+                name + f"__sagittal_X={best_sagittal[index]}" + ".nii.gz"
             )
             nib.save(sagittal_image, sagittal_name)
 
             coronal_numpy: npt.NDArray[np.float64]
             # Take the slice.  Also insert trivial z dimension for nibabel.
-            coronal_numpy = slices_voxels["coronal"][bestY[index], :, :, None, :]
+            coronal_numpy = slices_voxels["coronal"][best_coronal[index], :, :, None, :]
             coronal_image: nib.nifti1.Nifti1Image
             coronal_image = nib.Nifti1Image(
                 coronal_numpy, template_affine, nib.Nifti1Header()
             )
             coronal_name: pathlib.Path
             coronal_name = destination_directory / (
-                name + f"__coronal_X={bestY[index]}" + ".nii.gz"
+                name + f"__coronal_X={best_coronal[index]}" + ".nii.gz"
             )
             nib.save(coronal_image, coronal_name)
 
             axial_numpy: npt.NDArray[np.float64]
             # Take the slice.  Also insert trivial z dimension for nibabel.
-            axial_numpy = slices_voxels["axial"][bestZ[index], :, :, None, :]
+            axial_numpy = slices_voxels["axial"][best_axial[index], :, :, None, :]
             axial_image: nib.nifti1.Nifti1Image
             axial_image = nib.Nifti1Image(
                 axial_numpy, template_affine, nib.Nifti1Header()
             )
             axial_name: pathlib.Path
             axial_name = destination_directory / (
-                name + f"__axial_X={bestZ[index]}" + ".nii.gz"
+                name + f"__axial_X={best_axial[index]}" + ".nii.gz"
             )
             nib.save(axial_image, axial_name)
 
@@ -2153,9 +2153,9 @@ class Basic:
         response: pd.core.frame.DataFrame
         if df_list:
             response = df_list[0]
-            for next in df_list[1:]:
+            for next_df in df_list[1:]:
                 response = response.merge(
-                    next, on=self.join_keys, how="inner", validate="one_to_one"
+                    next_df, on=self.join_keys, how="inner", validate="one_to_one"
                 )
         else:
             response = pd.core.frame.DataFrame()
@@ -2398,70 +2398,79 @@ class Basic:
         # table_of_filenames_and_metadata, check existence and validity.
 
         response: list[str] = []
-        input_raw: ConfigurationType | ConfigurationValue | None
+        var_kind_raw: ConfigurationType | ConfigurationValue | None
 
         # tested = ksads
         # target = voxels
         # confounding = interview_age, etc.
-        for input in ["tested", "target", "confounding"]:
+        for var_kind in ["tested", "target", "confounding"]:
             # source_directory can be provided for tested, target, and confounding
-            input_raw = self.config_get([input + "_variables", "source_directory"])
-            input_source_directory: pathlib.Path | None
-            input_source_directory = (
-                pathlib.Path(cast(str, input_raw)) if input_raw is not None else None
+            var_kind_raw = self.config_get(
+                [var_kind + "_variables", "source_directory"]
+            )
+            var_kind_source_directory: pathlib.Path | None
+            var_kind_source_directory = (
+                pathlib.Path(cast(str, var_kind_raw))
+                if var_kind_raw is not None
+                else None
             )
 
-            if input != "target":
+            if var_kind != "target":
                 response = [
                     *response,
                     *self.check_file_internal(
-                        input_source_directory,
+                        var_kind_source_directory,
                         self.config_get(
-                            [input + "_variables", "variable_default", "filename"]
+                            [var_kind + "_variables", "variable_default", "filename"]
                         ),
                     ),
                 ]
 
-                input_raw = self.config_get([input + "_variables", "variable"])
-                for variable in cast(dict[str, Any], input_raw):
+                var_kind_raw = self.config_get([var_kind + "_variables", "variable"])
+                for variable in cast(dict[str, Any], var_kind_raw):
                     response = [
                         *response,
                         *self.check_file_internal(
-                            input_source_directory,
+                            var_kind_source_directory,
                             self.config_get(
-                                [input + "_variables", "variable", variable, "filename"]
+                                [
+                                    var_kind + "_variables",
+                                    "variable",
+                                    variable,
+                                    "filename",
+                                ]
                             ),
                         ),
                     ]
 
-            if input == "target":
-                input_raw = self.config_get(
+            if var_kind == "target":
+                var_kind_raw = self.config_get(
                     ["target_variables", "individual_filenames_and_metadata"]
                 )
-                if input_raw is not None:
-                    input_list: list[dict[str, Any]]
-                    input_list = cast(list[dict[str, Any]], input_raw)
-                    for file_dict in input_list:
+                if var_kind_raw is not None:
+                    var_kind_list: list[dict[str, Any]]
+                    var_kind_list = cast(list[dict[str, Any]], var_kind_raw)
+                    for file_dict in var_kind_list:
                         response = [
                             *response,
                             *self.check_file_internal(
-                                input_source_directory, file_dict.get("filename")
+                                var_kind_source_directory, file_dict.get("filename")
                             ),
                         ]
-                input_raw = self.config_get(
+                var_kind_raw = self.config_get(
                     ["target_variables", "table_of_filenames_and_metadata"]
                 )
                 response = [
                     *response,
-                    *self.check_csv(input_source_directory, input_raw, schema),
+                    *self.check_csv(var_kind_source_directory, var_kind_raw, schema),
                 ]
 
-        input_raw = self.config_get(["output", "destination_directory"])
-        if input_raw is None:
+        var_kind_raw = self.config_get(["output", "destination_directory"])
+        if var_kind_raw is None:
             response = [*response, "output.destination_directory must be supplied."]
         else:
             destination_path: pathlib.Path
-            destination_path = pathlib.Path(cast(str, input_raw))
+            destination_path = pathlib.Path(cast(str, var_kind_raw))
             if not (destination_path.is_dir() and os.access(destination_path, os.W_OK)):
                 response = [
                     *response,
